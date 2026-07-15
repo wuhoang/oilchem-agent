@@ -1,0 +1,24 @@
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/Dockerfile.backend
+    container_name: oilchem-backend
+    restart: unless-stopped
+    env_file:
+      - ../backend/.env.example
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend/logs:/app/logs
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/Dockerfile.frontend
+    container_name: oilchem-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
