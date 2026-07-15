@@ -2,7 +2,7 @@
 Centralized Loguru configuration.
 
 Format: time | level | module | message
-Sinks : console + logs/app.log (rotation 10 MB, retention 14 days)
+Sinks : console (colored) + logs/app.log (plain, rotation 10 MB, retention 14 days)
 """
 
 from __future__ import annotations
@@ -20,11 +20,18 @@ from app.core.constants import APP_NAME
 logger.remove()
 
 
-LOG_FORMAT: str = (
+CONSOLE_FORMAT: str = (
     "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
     "<level>{level: <8}</level> | "
     "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
     "<level>{message}</level>"
+)
+
+FILE_FORMAT: str = (
+    "{time:YYYY-MM-DD HH:mm:ss.SSS} | "
+    "{level: <8} | "
+    "{name}:{function}:{line} | "
+    "{message}"
 )
 
 
@@ -39,7 +46,7 @@ def setup_logging() -> None:
 
     logger.add(
         sys.stdout,
-        format=LOG_FORMAT,
+        format=CONSOLE_FORMAT,
         level=settings.log_level.upper(),
         colorize=True,
         enqueue=False,
@@ -47,11 +54,10 @@ def setup_logging() -> None:
 
     logger.add(
         str(_build_log_file()),
-        format=LOG_FORMAT,
+        format=FILE_FORMAT,
         level=settings.log_level.upper(),
         rotation="10 MB",
         retention="14 days",
-        compression=None,
         encoding="utf-8",
         enqueue=False,
     )

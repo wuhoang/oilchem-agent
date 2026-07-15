@@ -14,8 +14,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 # Project root (one level above backend/) and backend root.
-PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
-BACKEND_ROOT: Path = Path(__file__).resolve().parents[1]
+# Path layout: config.py -> app/core/ -> app/ -> backend/ -> project_root
+PROJECT_ROOT: Path = Path(__file__).resolve().parents[3]
+BACKEND_ROOT: Path = Path(__file__).resolve().parents[2]
 LOGS_DIR: Path = BACKEND_ROOT / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
