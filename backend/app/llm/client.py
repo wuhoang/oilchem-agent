@@ -27,7 +27,7 @@ class LLMClient:
 
     Usage::
 
-        config = ProviderConfig(provider="ollama", base_url="http://localhost:11434", model_name="qwen2.5")
+        config = ProviderConfig(provider="openai", base_url="https://api.deepseek.com/v1", model_name="deepseek-chat")
         client = LLMClient(config)
         response = await client.chat(messages=[ChatMessage(role="user", content="你好")])
         await client.close()

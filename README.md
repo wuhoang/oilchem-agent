@@ -2,7 +2,7 @@
 
 > 石油化工智能实验室 Agent 平台 —— 连接「人 · 硬件 · 软件 · 网页」的中间层。
 
-![version](https://img.shields.io/badge/version-0.16.2-blue)
+![version](https://img.shields.io/badge/version-0.16.3-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![python](https://img.shields.io/badge/Python-3.12-blue)
 ![react](https://img.shields.io/badge/React-18-blue)
@@ -40,8 +40,8 @@ OilChem Agent 是一个面向石油化工/化学实验室的 AI 助手：通过�
          ▼                                  ▼
   ┌─────────────┐                   ┌───────────────┐
   │  LLM Client │                   │  AgentManager │
-  │ (Ollama /   │                   │  ┌─────────┐  │
-  │  OpenAI)    │                   │  │ Planner │  │
+  │ (DeepSeek / │                   │  ┌─────────┐  │
+  │  OpenAI兼容)│                   │  │ Planner │  │
   └─────────────┘                   │  │Executor │  │
                                     │  │ Memory  │  │
   ┌─────────────┐                   │  └─────────┘  │
@@ -194,31 +194,33 @@ npm run dev
 
 ### LLM 配置
 
-在 `backend/.env` 中配置 LLM 提供商，支持本地 Ollama 或 OpenAI 兼容接口：
+在 `backend/.env` 中配置 LLM 提供商。**当前默认使用 DeepSeek API**（通过 OpenAI 兼容接口）：
 
 ```env
-# 方式 A：本地 Ollama（无需 API Key）
-LLM_PROVIDER=ollama
-OPENAI_BASE_URL=http://localhost:11434
-OPENAI_API_KEY=
-MODEL_NAME=qwen2.5
+# 方式 A：DeepSeek API（当前默认）
+LLM_PROVIDER=openai
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+OPENAI_API_KEY=sk-你的-deepseek-key
+MODEL_NAME=deepseek-chat
 LLM_TIMEOUT=30.0
 LLM_MAX_RETRIES=2
 LLM_TEMPERATURE=0.7
-LLM_MAX_TOKENS=2048
+LLM_MAX_TOKENS=4096
 
-# 方式 B：OpenAI 兼容接口（DeepSeek / 通义 / 官方等）
-# LLM_PROVIDER=openai
-# OPENAI_BASE_URL=https://api.deepseek.com/v1
-# OPENAI_API_KEY=sk-xxx
-# MODEL_NAME=deepseek-chat
+# 方式 B：本地 Ollama（无需 API Key，备用方案）
+# LLM_PROVIDER=ollama
+# OPENAI_BASE_URL=http://localhost:11434
+# OPENAI_API_KEY=
+# MODEL_NAME=qwen2.5
 ```
 
-使用 Ollama 本地模型：
+验证连通性：`GET /api/v1/llm/test`
+
+如需切换本地 Ollama 模型：
 1. 安装 [Ollama](https://ollama.com)
 2. 拉取模型：`ollama pull qwen2.5`
 3. 启动 Ollama：`ollama serve`
-4. 验证连通性：`GET /api/v1/llm/test`
+4. 修改 `.env` 使用方式 B，重启后端
 
 ### 文件系统配置
 

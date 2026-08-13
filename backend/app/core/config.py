@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # ---- App ----
     app_name: str = Field(default="OilChem Agent", alias="APP_NAME")
-    version: str = Field(default="0.16.2", alias="APP_VERSION")
+    version: str = Field(default="0.16.3", alias="APP_VERSION")
     env: str = Field(default="dev", alias="ENV")
     debug: bool = Field(default=True, alias="DEBUG")
 
@@ -43,14 +43,15 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, alias="PORT")
 
     # ---- LLM ----
-    llm_provider: str = Field(default="ollama", alias="LLM_PROVIDER")
-    openai_base_url: str = Field(default="http://localhost:11434", alias="OPENAI_BASE_URL")
+    # 默认值对应 DeepSeek（OpenAI 兼容接口）；实际以 backend/.env 为准
+    llm_provider: str = Field(default="openai", alias="LLM_PROVIDER")
+    openai_base_url: str = Field(default="https://api.deepseek.com/v1", alias="OPENAI_BASE_URL")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
-    model_name: str = Field(default="qwen2.5", alias="MODEL_NAME")
+    model_name: str = Field(default="deepseek-chat", alias="MODEL_NAME")
     llm_timeout: float = Field(default=30.0, alias="LLM_TIMEOUT")
     llm_max_retries: int = Field(default=2, alias="LLM_MAX_RETRIES")
     llm_temperature: float = Field(default=0.7, alias="LLM_TEMPERATURE")
-    llm_max_tokens: int = Field(default=2048, alias="LLM_MAX_TOKENS")
+    llm_max_tokens: int = Field(default=4096, alias="LLM_MAX_TOKENS")
 
     # ---- File System ----
     file_allowed_paths: str = Field(default="", alias="FILE_ALLOWED_PATHS")

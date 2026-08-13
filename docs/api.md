@@ -12,7 +12,7 @@ Returns the application banner.
 ```json
 {
   "name": "OilChem Agent",
-  "version": "0.16.2",
+  "version": "0.16.3",
   "status": "running"
 }
 ```
@@ -43,7 +43,7 @@ Liveness probe.
   "success": true,
   "message": "Connected. Response: OK",
   "latency_ms": 1234,
-  "model": "qwen2.5"
+  "model": "deepseek-chat"
 }
 ```
 
@@ -53,9 +53,9 @@ Liveness probe.
 
 ```json
 {
-  "provider": "ollama",
-  "base_url": "http://localhost:11434",
-  "model_name": "qwen2.5",
+  "provider": "openai",
+  "base_url": "https://api.deepseek.com/v1",
+  "model_name": "deepseek-chat",
   "timeout": 30.0
 }
 ```

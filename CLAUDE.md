@@ -17,9 +17,10 @@
 
 **OilChem Agent** — 石油化工/化学实验室 AI 助手，定位为「人-硬件-软件-网页」的中间层。
 
-- 当前版本：0.16.2，在 `develop` 分支开发
+- 当前版本：0.16.3，在 `develop` 分支开发
 - 技术栈：Python 3.12 + FastAPI + SQLAlchemy (aiosqlite) | React 18 + TypeScript + Vite + TailwindCSS
-- 默认 LLM：Ollama + qwen2.5（本地 `http://localhost:11434`）。用户不想为此花大钱上云端强模型
+- **实际使用的 LLM**：DeepSeek API（`deepseek-chat`，通过 OpenAI 兼容接口）。配置在 `backend/.env`，**不在代码里**
+- 代码层同时预留了本地 Ollama Provider（可用 `qwen2.5` 等），但**当前默认和实际运行都是 DeepSeek**，不要假设系统用本地小模型
 - 用户背景：油化领域出身，软件不太熟但对硬件接口更了解
 
 ## 架构速览
@@ -61,7 +62,7 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 
 | 状态 | 模块 |
 |------|------|
-| ✅ 可用 | FastAPI 骨架、LLM 客户端 (OpenAI/Ollama)、Playwright 网页工具 (browse/smart_fill)、对话端点 (含 SSE)、Guardrails 已接入 chat 端点、DB 端点已接入 ORM (SQLite) |
+| ✅ 可用 | FastAPI 骨架、LLM 客户端 (OpenAI 兼容/DeepSeek + Ollama 预留)、Playwright 网页工具 (browse/smart_fill)、对话端点 (含 SSE)、Guardrails 已接入 chat 端点、DB 端点已接入 ORM (SQLite) |
 | 🔧 已实现未验证 | 18个工具中除已验证之外的其余工具、文件监听 (watchdog)、Agent Planner/Executor/Memory |
 | ⚠️ Mock | 硬件设备 (5个假设备+随机漂移，假闭环)、DB 的 users 表不在 ORM 中 (已删除) |
 | 🔌 预留 | 用户认证 (AUTH_ENABLED=false)、MCP 客户端 (写了没接)、真实硬件通信 (RS232/USB/GPIB) |
@@ -95,7 +96,7 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 - 如果改了 DB/chat 端点，用 TestClient 实际测一下 API 调用
 
 ### 关键已知问题
-- **Agent Planner 强依赖 LLM 输出合法 JSON**，用 qwen2.5 之类的小模型成功率不高。`_extract_json_object()` 有三层容错，但容错失败时降级为纯 LLM 步骤（不调工具），用户无感知
+- **Agent Planner 依赖 LLM 输出合法 JSON**。`_extract_json_object()` 有三层容错，但容错失败时降级为纯 LLM 步骤（不调工具），用户无感知。当前 DeepSeek 表现良好；若切回本地小模型（如 qwen2.5）成功率会下降
 - **MemoryManager 纯内存**，进程重启全部丢失，不是 Bug 是设计如此（还没做持久化）
 - **`send_hardware_command` 假闭环**：工具 → HTTP 调自己 API 端点 → API 返回 `{"status":"queued"}` → 工具返回成功。没有真实硬件通信
 - **`init_db()` 三阶段执行**：Alembic → create_all(幂等补建) → seed(幂等填充)。不要回退到早 return 模式，否则新增 ORM 表不会创建

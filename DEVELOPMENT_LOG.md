@@ -6,6 +6,19 @@
 
 ---
 
+## [0.16.3] — 2026-08-13
+
+### Fixed
+
+- **消除"项目用本地小模型 qwen2.5"的误导**
+  - 问题：实际使用 DeepSeek（`deepseek-chat`），但 CLAUDE.md / README / api.md / PROJECT_STATUS.md 多处把 qwen2.5、Ollama 当作默认描述，导致审查 Agent 误判"模型能力不足"
+  - `CLAUDE.md` 明确标注实际 LLM 为 DeepSeek，Ollama 仅为预留 Provider；"关键已知问题"改为说明当前 DeepSeek 表现良好
+  - `config.py` 默认值从 `ollama + qwen2.5` 改为 `openai + deepseek-chat`（运行仍以 `.env` 为准）
+  - README LLM 配置章节重写，DeepSeek 放首位、Ollama 标注为备用方案
+  - api.md / PROJECT_STATUS.md 的示例与描述同步为 DeepSeek
+
+---
+
 ## [0.16.2] — 2026-08-13
 
 ### Fixed

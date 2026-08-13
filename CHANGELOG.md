@@ -5,6 +5,14 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.3] - 2026-08-13
+
+### Fixed
+
+- **消除"项目用本地小模型 qwen2.5"的误导**：实际使用 DeepSeek（deepseek-chat），但 CLAUDE.md、README、api.md、PROJECT_STATUS.md 多处残留 qwen2.5/Ollama 描述，导致审查 Agent 误判
+- `config.py` 默认值从 `ollama + qwen2.5` 改为 `openai + deepseek-chat`（实际运行仍以 `.env` 为准）
+- CLAUDE.md 明确标注：实际 LLM 为 DeepSeek，Ollama 仅为预留 Provider
+
 ## [0.16.2] - 2026-08-13
 
 ### Fixed

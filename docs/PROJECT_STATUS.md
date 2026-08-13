@@ -1,7 +1,7 @@
-# OilChem Agent 项目状态报告 (v0.16.2)
+# OilChem Agent 项目状态报告 (v0.16.3)
 
 > 更新：2026-08-13
-> 基于全部源码逐文件阅读，不含推测。v0.16.2 变更：移除硬编码本地路径、版本号全量统一。
+> 基于全部源码逐文件阅读，不含推测。v0.16.3 变更：默认 LLM 修正为 DeepSeek（清除 qwen2.5 误导描述）。
 
 ---
 
@@ -130,7 +130,7 @@ Agent 内部管线:
 | MemoryManager | `agent/memory/memory.py` | 🔧 | 纯内存（重启丢失），超 50 条截断压缩（非 LLM 摘要，仅拼接），朴素子串搜索 |
 | Prompts | `agent/prompts/prompts.py` | 🔧 | 三层提示词：默认+石油化工领域+实验室自动化，含 `smart_fill_form` 使用示例 |
 
-**Planner 的关键风险**：工具调用靠 prompt engineering 让 LLM 输出 JSON，不用 function calling。`_extract_json_object()` 做了三层容错（直接 parse → 代码块提取 → 花括号匹配），但容错失败时降级为纯 LLM 步骤，用户无感知。用 `qwen2.5` 级别的小模型跑规划，JSON 合法率和步骤合理性均未验证。
+**Planner 的关键风险**：工具调用靠 prompt engineering 让 LLM 输出 JSON，不用 function calling。`_extract_json_object()` 做了三层容错（直接 parse → 代码块提取 → 花括号匹配），但容错失败时降级为纯 LLM 步骤，用户无感知。当前 DeepSeek 表现良好；若切回本地小模型（如 qwen2.5）规划质量会下降。
 
 ### 3.5 API 端点
 
@@ -262,28 +262,33 @@ Agent 内部管线:
 
 | 位置 | 版本号 |
 |---|---|
-| `backend/pyproject.toml` | 0.16.2 |
-| `backend/.env` (APP_VERSION) | 0.16.2 |
-| `backend/.env.example` | 0.16.2 |
-| `backend/app/core/config.py` (default) | 0.16.2 |
-| `backend/app/core/constants.py` | 0.16.2 |
-| `frontend/package.json` | 0.16.2 |
-| `frontend/src/App.tsx` | v0.16.2 |
-| `frontend/src/components/Sidebar.tsx` | v0.16.2 |
-| `docs/api.md` | 0.16.2 |
+| `backend/pyproject.toml` | 0.16.3 |
+| `backend/.env` (APP_VERSION) | 0.16.3 |
+| `backend/.env.example` | 0.16.3 |
+| `backend/app/core/config.py` (default) | 0.16.3 |
+| `backend/app/core/constants.py` | 0.16.3 |
+| `frontend/package.json` | 0.16.3 |
+| `frontend/src/App.tsx` | v0.16.3 |
+| `frontend/src/components/Sidebar.tsx` | v0.16.3 |
+| `docs/api.md` | 0.16.3 |
 
-## 八、v0.16.2 变更记录
+## 八、v0.16.3 变更记录
+
+1. **默认 LLM 修正为 DeepSeek**：`config.py` 默认值从 `ollama + qwen2.5` 改为 `openai + https://api.deepseek.com/v1 + deepseek-chat`（实际运行仍以 `.env` 为准）；CLAUDE.md、README、api.md 中 qwen2.5/Ollama 的误导性默认描述已清理，Ollama 仅保留为可选预留方案
+2. **版本号统一到 0.16.3**：代码 8 处 + `.env.example`/CLAUDE.md/DEVELOPMENT.md 同步
+
+## 九、v0.16.2 变更记录
 
 1. **移除 3 处硬编码本地路径**：`FileBrowser.tsx` 默认目录改为空字符串，后端 `_resolve_path()` 对空路径回退到项目根目录（`Path(__file__).parents[4]` 代码相对定位），行为与原默认一致；Planner 提示词示例路径改为通用写法；`file_access_scope.md` 改为描述 `FILE_ALLOWED_PATHS` 配置
 2. **版本号全量统一**：`.env.example`/CLAUDE.md/DEVELOPMENT.md/README.md 同步到 0.16.2，与代码 9 处版本号一致
 
-## 九、v0.16.1 变更记录
+## 十、v0.16.1 变更记录
 
 1. **系统提示词新增「硬件设备使用指南」**：列出 5 台设备及指标，明确 `read_hardware`(实时) / `query_hardware_history`(历史) 分工，给出画趋势图标准步骤
 2. **工具描述优化**：两个硬件工具 description 各自强调实时/历史定位，device_id 参数补充中文设备名
 3. **效果**：Agent 能正确区分"实时读数"（用 read_hardware）和"历史趋势"（用 query_hardware_history），消除割裂感
 
-## 九、v0.16.0 变更记录
+## 十一、v0.16.0 变更记录
 
 1. **硬件遥测采集服务**：`HardwareCollectorService` 后台 10s 轮询写入 `DeviceTelemetryHistory` OLTP 表，含过期清理
 2. **Agent 工具 `query_hardware_history`**：第 19 个已注册工具，按设备/指标/时间范围查询历史，降采样 + 直接喂 `plot_chart`
@@ -291,12 +296,12 @@ Agent 内部管线:
 4. **`plot_chart` 缩进 bug 修复**：校验代码吞掉了图表生成逻辑
 5. **Planner prompt 优化**：教 LLM 用模板引用替代自然语言占位符
 
-## 九、v0.15.1 变更记录
+## 十二、v0.15.1 变更记录
 
 1. **前端全局错误提示**：新增 `ErrorToast.tsx`，通过 `notifyError()` 派发 CustomEvent 在页面顶部显示红色提示，替换 `alert()` 弹窗
 2. **首次通过生产构建**：`npm run build` 首次成功，修复 `FileBrowser.tsx` 隐式 `any` 类型和 `Message.tsx` 未使用变量
 
-## 十、v0.15.0 变更记录
+## 十三、v0.15.0 变更记录
 
 1. **Guardrails 接入**：`InputGuardrail` 接入 `POST /chat` 和 `POST /chat/stream`（注入检测 + 脱敏）；`OutputGuardrail` 接入 `POST /chat`（内容过滤），`POST /chat/stream` 在完成时做审计日志
 2. **DB 端点接入 ORM**：新增 `Experiment`/`Sample`/`Device` ORM 模型；`db.py` 从内存列表重写为 `AsyncSession` + `select()` 真实查询；`init_db()` 增加种子数据自动填充（幂等）
