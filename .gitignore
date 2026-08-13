@@ -48,3 +48,16 @@ Thumbs.db
 *.bak
 *.tmp
 .cache/
+
+# ----- Runtime data / large binaries -----
+*.db
+*.zip
+backend/.playwright-browsers/
+
+# ----- 临时调试脚本 -----
+backend/test_playwright.py
+backend/test_pw_sync.py
+backend/test_thread_pw.py
+
+# ----- Claude Code local settings -----
+.claude/settings.local.json

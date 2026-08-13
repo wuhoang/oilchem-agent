@@ -1,0 +1,121 @@
+# CLAUDE.md
+
+## 目录注意事项
+
+以下目录不在版本控制中，体量巨大（合计 >6GB），**日常搜索/Grep/Glob 默认排除**，误扫会瞬间烧掉数万 token：
+
+- `backend/.venv/` — 3.9GB，Python 依赖
+- `frontend/node_modules/` — 2.5GB，Node 依赖
+- `backend/.playwright-browsers/` — Chromium/Firefox 浏览器二进制
+- `.git/` — Git 仓库数据
+
+**平时搜索限定在源码目录**：`./backend/app/`、`./backend/tests/`、`./frontend/src/`、`./docs/`、`./backend/alembic/`、`./backend/scripts/`。
+
+如果排查依赖冲突、包版本问题、构建错误时需要查看上述目录中的具体文件，可以看——但必须有明确目标文件路径，**严禁**在 `.venv/` 或 `node_modules/` 中做模糊搜索（如 `grep "some_pattern" .venv/`）。
+
+## 项目
+
+**OilChem Agent** — 石油化工/化学实验室 AI 助手，定位为「人-硬件-软件-网页」的中间层。
+
+- 当前版本：0.15.0，在 `develop` 分支开发
+- 技术栈：Python 3.12 + FastAPI + SQLAlchemy (aiosqlite) | React 18 + TypeScript + Vite + TailwindCSS
+- 默认 LLM：Ollama + qwen2.5（本地 `http://localhost:11434`）。用户不想为此花大钱上云端强模型
+- 用户背景：油化领域出身，软件不太熟但对硬件接口更了解
+
+## 架构速览
+
+```
+frontend/ (React SPA, :5173)  ──HTTP/SSE──▶ backend/ (FastAPI, :8000)
+                                                │
+   ★ Agent 管线 ★                                   │
+   AgentManager → Planner(LLM输出JSON计划)            │
+               → Executor(逐步执行18个工具)            │
+               → Memory(纯内存会话)                    │
+                                                │
+   /api/v1/chat  +  /api/v1/chat/stream        │
+   /api/v1/db/*  +  /api/v1/llm/*              │
+   /api/v1/web/*  +  /api/v1/files/*           │
+   /api/v1/hardware/*                           │
+```
+
+## 常用命令
+
+```bash
+# 后端
+cd backend && .venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# 前端
+cd frontend && npm run dev
+
+# 一键启动
+python start.py
+
+# 测试
+cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
+
+# 数据库（SQLite 文件在 backend/oilchem_agent.db）
+删除 .db 文件后重启后端会自动重建 + 填充种子数据
+```
+
+## 当前真实状态
+
+| 状态 | 模块 |
+|------|------|
+| ✅ 可用 | FastAPI 骨架、LLM 客户端 (OpenAI/Ollama)、Playwright 网页工具 (browse/smart_fill)、对话端点 (含 SSE)、Guardrails 已接入 chat 端点、DB 端点已接入 ORM (SQLite) |
+| 🔧 已实现未验证 | 18个工具中除已验证之外的其余工具、文件监听 (watchdog)、Agent Planner/Executor/Memory |
+| ⚠️ Mock | 硬件设备 (5个假设备+随机漂移，假闭环)、DB 的 users 表不在 ORM 中 (已删除) |
+| 🔌 预留 | 用户认证 (AUTH_ENABLED=false)、MCP 客户端 (写了没接)、真实硬件通信 (RS232/USB/GPIB) |
+
+## 项目规则
+
+### 版本号
+改代码涉及版本变化时，统一更新这 9 处：
+- `backend/pyproject.toml`、`backend/.env` (APP_VERSION)
+- `backend/app/core/config.py`、`backend/app/core/constants.py`
+- `frontend/package.json`、`frontend/package-lock.json`
+- `frontend/src/App.tsx`、`frontend/src/components/Sidebar.tsx`
+- `docs/api.md`
+
+### 文档更新
+每次改动后同步更新：
+- `CHANGELOG.md` — 按 Added/Fixed/Changed 格式追加
+- `DEVELOPMENT_LOG.md` — 详细版变更日志
+- `docs/PROJECT_STATUS.md` — 逐模块状态表
+- `README.md` — 如有功能状态变化
+
+### 代码风格
+- Python: `from __future__ import annotations`，Pydantic v2 模型，Loguru 日志（`logger.bind(component="xxx")` 结构化）
+- 前端: React 函数组件 + hooks，TypeScript，API 调用封装在 `services/api.ts`
+- 日志: 所有新增端点/工具调用加 Loguru 日志，级别按 info/warning/error
+- 注释: 不要无意义注释。公共 API 用 docstring，内部逻辑只在反直觉时加注
+
+### 测试
+- 目前仅 2 个 smoke test (`backend/tests/test_bootstrap.py`)
+- 改完代码至少跑一遍确认不过不了
+- 如果改了 DB/chat 端点，用 TestClient 实际测一下 API 调用
+
+### 关键已知问题
+- **Agent Planner 强依赖 LLM 输出合法 JSON**，用 qwen2.5 之类的小模型成功率不高。`_extract_json_object()` 有三层容错，但容错失败时降级为纯 LLM 步骤（不调工具），用户无感知
+- **MemoryManager 纯内存**，进程重启全部丢失，不是 Bug 是设计如此（还没做持久化）
+- **`send_hardware_command` 假闭环**：工具 → HTTP 调自己 API 端点 → API 返回 `{"status":"queued"}` → 工具返回成功。没有真实硬件通信
+- **`init_db()` 三阶段执行**：Alembic → create_all(幂等补建) → seed(幂等填充)。不要回退到早 return 模式，否则新增 ORM 表不会创建
+- **Playwright 在后台线程 + 任务队列模式运行**（`_SyncBrowserManager`），不要试图改用 async API，会触发 Windows greenlet 跨线程错误
+
+### 用户偏好
+- 用户对软件工程不太熟，解释技术概念时用白话、用类比
+- 用户更信任看得见的东西（前端界面 > 测试结果 > 日志 > 代码逻辑）
+- 每次改动后主动问要不要跑起来看看
+- 评估项目状态时实事求是，不美化不贬低
+- 不要擅自创建文档文件（.md）除非明确要求
+
+### 每次改动后必做检查清单
+代码改完之后，主动检查以下内容，有遗漏就补上，不需要等用户提醒：
+1. **版本号**：涉及功能变化时，检查 9 处版本号是否都已更新（见上方"版本号"章节）
+2. **CHANGELOG.md**：按 Added/Fixed/Changed 格式追加本次变更
+3. **DEVELOPMENT_LOG.md**：补充详细变更记录
+4. **docs/PROJECT_STATUS.md**：逐模块状态表如有变化要同步更新
+5. **README.md**：如有功能状态变化要更新状态表
+6. **docs/api.md**：如有 API 变更要同步更新
+7. **docs/architecture.md**：如有架构变化要同步更新
+
+纯 bug 修复、小调整、代码重构等不影响功能/接口的改动，至少检查第 1、2 项。
