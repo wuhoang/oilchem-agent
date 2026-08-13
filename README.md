@@ -1,10 +1,56 @@
 # OilChem Agent
 
-石油化工领域的企业级 Agent 平台。集成 LLM 对话、Office 文档处理、硬件设备管理、数据管理、网页填表等能力，为人-机-物协同提供中间层解决方案。
+> 石油化工智能实验室 Agent 平台 —— 连接「人 · 硬件 · 软件 · 网页」的中间层。
 
-> **当前版本：** v0.16.2
-> **状态：** 原型阶段 — Agent 骨架/LLM/Playwright 网页工具可用，硬件与部分 DB 端点仍为 Mock 数据
+![version](https://img.shields.io/badge/version-0.16.2-blue)
+![license](https://img.shields.io/badge/license-MIT-green)
+![python](https://img.shields.io/badge/Python-3.12-blue)
+![react](https://img.shields.io/badge/React-18-blue)
+![status](https://img.shields.io/badge/status-prototype-orange)
+
+OilChem Agent 是一个面向石油化工/化学实验室的 AI 助手：通过自然语言对话，完成实验数据查询与可视化、Office 文档处理、硬件设备状态监控、网页自动化填表等工作。
+
+> **当前状态：** 原型阶段。Agent 管线 / LLM 对话 / 文件与 Office 工具 / 数据管理已可用；硬件设备当前使用模拟数据，真实硬件通信（RS232/USB/GPIB）为后续预留。
 > **更新日志：** 详见 [CHANGELOG.md](CHANGELOG.md)
+
+---
+
+## 它能帮你做什么
+
+| 场景 | 示例 |
+|------|------|
+| 📊 **实验数据可视化** | 「读取 `hardware_info/hardware_simulation_data.json`，画出高温高压失水仪的漏失量曲线」→ 自动读文件 → 解析数据 → 生成图表 |
+| 🔬 **实验记录管理** | 实验记录、样品、设备的增删改查，SQLite 持久化，支持 CSV 导出 |
+| 📁 **Office 文档处理** | 读取/生成 Excel、Word、PPT，如「把这份实验数据整理成 Excel 表格」 |
+| 🏭 **设备状态监控** | 实时查看 5 台模拟设备的温度/压力/液位等指标，查询历史趋势并画图 |
+| 🌐 **网页自动化** | 浏览网页、智能填写表单（登录、录入数据），基于 Playwright |
+| 🛡️ **安全护栏** | Prompt 注入检测、敏感信息脱敏、有害内容过滤 |
+
+---
+
+## 架构一图流
+
+```
+┌──────────────────┐   HTTP/SSE   ┌───────────────────┐
+│  React SPA       │ ───────────▶ │  FastAPI backend  │
+│  (frontend/)     │ ◀─────────── │  (backend/app/)   │
+└──────────────────┘   JSON       └─────────┬─────────┘
+                                            │
+         ┌──────────────────────────────────┤
+         ▼                                  ▼
+  ┌─────────────┐                   ┌───────────────┐
+  │  LLM Client │                   │  AgentManager │
+  │ (Ollama /   │                   │  ┌─────────┐  │
+  │  OpenAI)    │                   │  │ Planner │  │
+  └─────────────┘                   │  │Executor │  │
+                                    │  │ Memory  │  │
+  ┌─────────────┐                   │  └─────────┘  │
+  │ 19 个工具    │ ◀──── 调用 ───────┤               │
+  │ (文件/Office │                   │  ToolManager  │
+  │  图表/网页/  │                   └───────────────┘
+  │  硬件)      │
+  └─────────────┘
+```
 
 ---
 
@@ -12,106 +58,14 @@
 
 | 模块 | 说明 | 状态 |
 |------|------|------|
-| 💬 智能对话 | SSE 流式对话、多会话管理、工具调用、上下文记忆 | ✅ 可用 |
+| 💬 智能对话 | SSE 流式对话、多会话管理、Agent 规划-执行-记忆管线 | ✅ 可用 |
 | 🛡️ 安全护栏 | Prompt 注入检测、敏感信息脱敏、输出过滤 | ✅ 已接入 |
-| 📁 文件管理 | 文本读写、目录浏览、Office 预览（Excel/Word/PPT）、文件监听 | 🔧 已实现 |
-| 🔧 Office 工具 | Excel 读写、Word 读写、PPT 读写 | 🔧 已实现 |
-| 📊 图表生成 | matplotlib 绑定的可视化工具，base64 图片自动在前端渲染 | 🔧 已实现 |
-| 🌐 网页填表 | Playwright 浏览器自动化：浏览、智能填表、内容提取 | ✅ 已验证 |
-| 💾 数据管理 | 实验记录/样品/设备的 CRUD，SQLAlchemy ORM 持久化 | ✅ 已接入 ORM |
-| 🔌 硬件设备 | 设备列表、实时指标模拟、指令下发（均使用模拟数据） | ⚠️ Mock |
-| 🗄️ 数据库 | SQLite + SQLAlchemy + Alembic 迁移 | ✅ 可用 |
-| 🔐 用户认证 | JWT 配置就绪，待启用 | 🔌 预留 |
-
----
-
-## 仓库结构
-
-```
-oilchem-agent/
-├── backend/                          # 后端 — FastAPI + Python 3.12
-│   ├── app/
-│   │   ├── agent/                    # Agent 内核
-│   │   │   ├── manager.py            #   Agent 管理器（协调 LLM + 工具 + 记忆）
-│   │   │   ├── memory/memory.py      #   会话记忆管理
-│   │   │   ├── planner/planner.py    #   任务规划器
-│   │   │   ├── executor.py           #   计划执行器
-│   │   │   └── prompts/prompts.py    #   系统提示词
-│   │   ├── api/v1/
-│   │   │   └── endpoints/
-│   │   │       ├── chat.py           #   对话 API（同步/流式/会话管理）
-│   │   │       ├── files.py          #   文件管理 API + WebSocket 监听
-│   │   │       ├── web.py            #   网页操作 API（浏览/填表/提取）
-│   │   │       ├── hardware.py       #   硬件设备 API
-│   │   │       ├── db.py             #   业务数据 CRUD API
-│   │   │       ├── llm.py            #   LLM 连通性测试
-│   │   │       ├── system.py         #   系统信息
-│   │   │       └── health.py         #   健康检查
-│   │   ├── core/                     # 配置、日志、安全
-│   │   ├── llm/                      # LLM 客户端 + 提供商抽象
-│   │   ├── tools/
-│   │   │   ├── base.py               #   工具基类
-│   │   │   ├── registry.py           #   工具注册表
-│   │   │   ├── manager.py            #   工具管理器
-│   │   │   └── builtin/
-│   │   │       ├── file_tools.py     #     文件系统操作
-│   │   │       ├── office_tools.py   #     Office 文档处理
-│   │   │       ├── chart_tools.py    #     图表生成
-│   │   │       ├── hardware_tools.py #     硬件设备工具
-│   │   │       └── web_tools.py      #     浏览器自动化
-│   │   ├── services/                 # 后台服务（文件监听）
-│   │   ├── database/                 # SQLAlchemy 会话管理
-│   │   ├── guardrails/               # 输入/输出护栏 + RBAC
-│   │   ├── mcp/                      # MCP 集成框架
-│   │   └── schemas/                  # 共享 Pydantic 模型
-│   ├── alembic/                      # 数据库迁移
-│   ├── scripts/migrate.py            # 迁移管理脚本
-│   ├── requirements.txt              # Python 依赖
-│   ├── .env.example                  # 环境变量模板
-│   └── alembic.ini
-├── frontend/                         # 前端 — React + Vite + TypeScript
-│   └── src/
-│       ├── types/index.ts            #   TypeScript 类型定义
-│       ├── services/api.ts           #   API 服务层
-│       ├── components/
-│       │   ├── ChatWindow.tsx        #     主对话窗口（SSE 流式）
-│       │   ├── Sidebar.tsx           #     会话侧边栏
-│       │   ├── FileBrowser.tsx      #     文件浏览器 + Office 预览
-│       │   ├── HardwarePanel.tsx     #     硬件设备面板
-│       │   ├── DatabasePanel.tsx     #     数据管理面板
-│       │   ├── WebFormPanel.tsx      #     网页填表面板
-│       │   ├── Message.tsx           #     单条消息组件
-│       │   ├── MessageList.tsx       #     消息列表
-│       │   └── MessageInput.tsx      #     消息输入框
-│       ├── App.tsx                   #   根组件 + Tab 导航
-│       └── index.css                 #   全局样式
-├── docs/                             # 架构文档
-│   ├── architecture.md
-│   ├── roadmap.md
-│   └── api.md
-├── CHANGELOG.md
-├── README.md
-└── LICENSE
-```
-
----
-
-## 技术栈
-
-| 层级 | 技术 | 版本 |
-|------|------|------|
-| **后端框架** | FastAPI + Uvicorn | Python 3.12 |
-| **数据校验** | Pydantic v2 + Pydantic Settings | 2.9.2 |
-| **LLM 交互** | HTTPX + 支持 Ollama/OpenAI API | 0.27.2 |
-| **数据库** | SQLAlchemy + aiosqlite + Alembic | 2.0.36 |
-| **Office 处理** | openpyxl / python-docx / python-pptx | — |
-| **图表生成** | matplotlib（后端绑定） | — |
-| **浏览器自动化** | Playwright（后端绑定） | — |
-| **文件监听** | Watchdog | 3.0.0 |
-| **日志** | Loguru | 0.7.2 |
-| **前端框架** | React + Vite + TypeScript | Node.js 22 |
-| **样式** | TailwindCSS | — |
-| **包管理** | pip / npm | — |
+| 📁 文件管理 | 文本读写、目录浏览、Office 预览、文件监听 | ✅ 可用 |
+| 📊 图表生成 | matplotlib 可视化，base64 在前端自动渲染 | ✅ 可用 |
+| 🌐 网页填表 | Playwright 浏览器自动化：浏览、智能填表、内容提取 | ✅ 可用 |
+| 💾 数据管理 | 实验记录/样品/设备 CRUD，SQLAlchemy ORM 持久化 | ✅ 可用 |
+| 🔌 硬件设备 | 设备列表、实时指标采集、历史趋势查询 | ⚠️ Mock 数据 |
+| 🔐 用户认证 | JWT 配置就绪 | 🔌 预留 |
 
 ---
 
@@ -240,9 +194,10 @@ npm run dev
 
 ### LLM 配置
 
-在 `backend/.env` 中配置 LLM 提供商：
+在 `backend/.env` 中配置 LLM 提供商，支持本地 Ollama 或 OpenAI 兼容接口：
 
 ```env
+# 方式 A：本地 Ollama（无需 API Key）
 LLM_PROVIDER=ollama
 OPENAI_BASE_URL=http://localhost:11434
 OPENAI_API_KEY=
@@ -251,6 +206,12 @@ LLM_TIMEOUT=30.0
 LLM_MAX_RETRIES=2
 LLM_TEMPERATURE=0.7
 LLM_MAX_TOKENS=2048
+
+# 方式 B：OpenAI 兼容接口（DeepSeek / 通义 / 官方等）
+# LLM_PROVIDER=openai
+# OPENAI_BASE_URL=https://api.deepseek.com/v1
+# OPENAI_API_KEY=sk-xxx
+# MODEL_NAME=deepseek-chat
 ```
 
 使用 Ollama 本地模型：
@@ -279,16 +240,16 @@ DATABASE_URL=sqlite+aiosqlite:///./oilchem_agent.db
 DB_ECHO=false
 ```
 
-启动时自动执行 Alembic 迁移。手动操作：
+启动时自动执行 Alembic 迁移并填充种子数据。手动操作：
 
 ```bash
 cd backend
 python -m scripts.migrate upgrade       # 升级到最新
 python -m scripts.migrate downgrade     # 回滚一个版本
 python -m scripts.migrate current       # 查看当前版本
-python -m scripts.migrate history      # 迁移历史
+python -m scripts.migrate history       # 迁移历史
 python -m scripts.migrate create "描述" # 创建新迁移
-python -m scripts.migrate drop         # 回退到初始
+python -m scripts.migrate drop          # 回退到初始
 ```
 
 ### 认证配置
@@ -299,9 +260,14 @@ JWT_SECRET_KEY=change-me-in-production
 JWT_EXPIRE_MINUTES=60
 ```
 
-### Office 依赖安装
+### 硬件采集配置
 
-Office 文件处理需要额外的 Python 库：
+```env
+HARDWARE_COLLECT_INTERVAL=10          # 遥测采集间隔（秒）
+HARDWARE_HISTORY_RETENTION_MINUTES=1440  # 历史数据保留窗口（分钟）
+```
+
+### Office 依赖安装
 
 ```bash
 pip install openpyxl python-docx python-pptx
@@ -310,8 +276,6 @@ pip install openpyxl python-docx python-pptx
 这些库已在 `requirements.txt` 中声明。
 
 ### 网页填表依赖安装
-
-浏览器自动化需要 Playwright：
 
 ```bash
 pip install playwright
@@ -339,9 +303,11 @@ playwright install chromium
 
 ---
 
-## 工具系统
+## Agent 工具系统（19 个）
 
 Agent 内置以下工具，可在对话中自动调用：
+
+### 文件操作
 
 | 工具 | 说明 |
 |------|------|
@@ -349,17 +315,36 @@ Agent 内置以下工具，可在对话中自动调用：
 | `write_file` | 写入文件（覆盖） |
 | `append_file` | 追加内容到文件 |
 | `list_files` | 列出目录内容（支持递归和 glob） |
-| `delete_file` | 删除文件（安全限制） |
+| `delete_file` | 删除文件（安全限制，不删目录） |
+
+### Office 文档
+
+| 工具 | 说明 |
+|------|------|
 | `read_excel` | 读取 Excel 表格数据 |
 | `write_excel` | 写入 Excel 表格数据 |
 | `read_word` | 提取 Word 文档段落和表格 |
+| `write_word` | 写入 Word 文档 |
 | `read_ppt` | 解析 PPT 幻灯片文本 |
+| `write_ppt` | 写入 PPT 演示文稿 |
+
+### 硬件设备
+
+| 工具 | 说明 |
+|------|------|
+| `read_hardware` | 读取设备实时指标快照 |
+| `query_hardware_history` | 查询设备历史趋势数据（支持降采样） |
+| `send_hardware_command` | 向硬件设备下发指令 |
+
+### 图表与网页
+
+| 工具 | 说明 |
+|------|------|
+| `plot_chart` | 生成 matplotlib 图表（折线图/柱状图/散点图等） |
 | `browse_webpage` | 浏览网页并提取内容、表单、截图 |
+| `smart_fill_form` | 智能识别并填写网页表单 |
 | `fill_webform` | 自动登录并填写网页表单 |
 | `extract_webpage_text` | 提取网页文本内容 |
-| `draw_chart` | 生成 matplotlib 图表（折线图/柱状图/散点图等） |
-| `query_hardware` | 查询硬件设备状态 |
-| `send_hardware_command` | 向硬件设备下发指令 |
 
 ---
 
@@ -386,6 +371,74 @@ Agent 内置以下工具，可在对话中自动调用：
 
 ---
 
+## 技术栈
+
+| 层级 | 技术 | 版本 |
+|------|------|------|
+| **后端框架** | FastAPI + Uvicorn | Python 3.12 |
+| **数据校验** | Pydantic v2 + Pydantic Settings | 2.9.2 |
+| **LLM 交互** | HTTPX（支持 Ollama/OpenAI 兼容接口） | 0.27.2 |
+| **数据库** | SQLAlchemy + aiosqlite + Alembic | 2.0.36 |
+| **Office 处理** | openpyxl / python-docx / python-pptx | — |
+| **图表生成** | matplotlib（后端绑定） | — |
+| **浏览器自动化** | Playwright（后端绑定） | — |
+| **文件监听** | Watchdog | 3.0.0 |
+| **日志** | Loguru | 0.7.2 |
+| **前端框架** | React + Vite + TypeScript | Node.js 22 |
+| **样式** | TailwindCSS | — |
+| **包管理** | pip / npm | — |
+
+---
+
+## 仓库结构
+
+```
+oilchem-agent/
+├── backend/                          # 后端 — FastAPI + Python 3.12
+│   ├── app/
+│   │   ├── agent/                    #   Agent 内核
+│   │   │   ├── manager.py            #     Agent 管理器（协调 LLM + 工具 + 记忆）
+│   │   │   ├── memory/memory.py      #     会话记忆管理
+│   │   │   ├── planner/planner.py    #     任务规划器
+│   │   │   ├── executor.py           #     计划执行器
+│   │   │   └── prompts/prompts.py    #     系统提示词
+│   │   ├── api/v1/endpoints/         #   REST + SSE 端点
+│   │   │   ├── chat.py               #     对话 API（同步/流式/会话管理）
+│   │   │   ├── files.py              #     文件管理 API + WebSocket 监听
+│   │   │   ├── web.py                #     网页操作 API（浏览/填表/提取）
+│   │   │   ├── hardware.py           #     硬件设备 API
+│   │   │   ├── db.py                 #     业务数据 CRUD API
+│   │   │   ├── llm.py                #     LLM 连通性测试
+│   │   │   ├── system.py             #     系统信息
+│   │   │   └── health.py             #     健康检查
+│   │   ├── core/                     #   配置、日志、安全
+│   │   ├── llm/                      #   LLM 客户端 + 提供商抽象
+│   │   ├── tools/builtin/            #   19 个内置工具（注册表 + 管理器）
+│   │   ├── services/                 #   后台服务（文件监听 / 硬件遥测采集）
+│   │   ├── database/                 #   SQLAlchemy 会话管理 + 种子数据
+│   │   ├── guardrails/               #   输入/输出护栏 + RBAC
+│   │   ├── mcp/                      #   MCP 集成框架（预留）
+│   │   └── schemas/                  #   共享 Pydantic 模型
+│   ├── alembic/                      #   数据库迁移
+│   ├── scripts/migrate.py            #   迁移管理脚本
+│   ├── requirements.txt              #   Python 依赖
+│   ├── .env.example                  #   环境变量模板
+│   └── alembic.ini
+├── frontend/                         # 前端 — React + Vite + TypeScript
+│   └── src/
+│       ├── types/index.ts            #   TypeScript 类型定义
+│       ├── services/api.ts           #   API 服务层
+│       ├── components/               #   对话/文件/硬件/数据/网页填表面板
+│       └── App.tsx                   #   根组件 + Tab 导航
+├── docs/                             # 架构 / 路线图 / API 文档
+├── hardware_info/                    # 硬件演示数据（模拟指标样例）
+├── CHANGELOG.md                      # 更新日志
+├── DEVELOPMENT_LOG.md                # 开发日志
+└── LICENSE
+```
+
+---
+
 ## Git 工作流
 
 - `main` — 稳定版，生产环境
@@ -399,4 +452,10 @@ Agent 内置以下工具，可在对话中自动调用：
 - [架构设计](docs/architecture.md)
 - [路线图](docs/roadmap.md)
 - [API 文档](docs/api.md)
-- [版本日志](DEVELOPMENT_LOG.md)
+- [项目状态](docs/PROJECT_STATUS.md)
+- [更新日志](CHANGELOG.md)
+- [开发日志](DEVELOPMENT_LOG.md)
+
+## License
+
+[MIT](LICENSE)
