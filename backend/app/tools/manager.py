@@ -94,5 +94,40 @@ class ToolManager:
             if m.enabled
         ]
 
+    def list_tools_schema(self) -> list[dict[str, Any]]:
+        """将可用工具转为 OpenAI tools 协议格式，供 function calling 使用。
+
+        工具注册时 parameters 有两种格式（历史遗留）：
+          - 标准 JSON Schema：{"type": "object", "properties": {...}}
+          - 扁平字典：{"device_id": {"type": "string"}, ...}
+        本方法统一规范化为标准 JSON Schema，避免扁平格式被
+        function calling API 判为非法而返回 400。
+        """
+        schemas = []
+        for m in list_tools():
+            if not m.enabled:
+                continue
+            fn: dict[str, Any] = {
+                "name": m.name,
+                "description": m.description,
+            }
+            if m.parameters:
+                fn["parameters"] = self._normalize_schema(m.parameters)
+            schemas.append({"type": "function", "function": fn})
+        return schemas
+
+    @staticmethod
+    def _normalize_schema(parameters: dict[str, Any]) -> dict[str, Any]:
+        """把工具参数规范化为标准 JSON Schema（type=object + properties）。"""
+        # 已是标准 JSON Schema 则直接返回
+        if parameters.get("type") == "object" and "properties" in parameters:
+            return parameters
+        # 扁平字典 → 包装成 properties，所有参数设为可选
+        return {
+            "type": "object",
+            "properties": parameters,
+            "required": [],
+        }
+
 
 __all__ = ["ToolManager"]

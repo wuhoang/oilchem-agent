@@ -1,7 +1,7 @@
-# OilChem Agent 项目状态报告 (v0.16.3)
+# OilChem Agent 项目状态报告 (v0.17.0)
 
 > 更新：2026-08-13
-> 基于全部源码逐文件阅读，不含推测。v0.16.3 变更：默认 LLM 修正为 DeepSeek（清除 qwen2.5 误导描述）。
+> 基于全部源码逐文件阅读，不含推测。v0.17.0 变更：Agent 工具调用迁移到原生 function calling。
 
 ---
 
@@ -124,13 +124,13 @@ Agent 内部管线:
 
 | 组件 | 文件 | 状态 | 说明 |
 |---|---|---|---|
-| AgentManager | `agent/manager.py` | ✅ | 协调 Planner/Executor/Memory/LLM，`chat()` + `chat_stream()` |
-| Planner | `agent/planner/planner.py` | 🔧 | LLM 输出 JSON 计划，三层 JSON 提取容错，**强依赖 LLM 质量** |
-| Executor | `agent/executor.py` | 🔧 | 逐步执行+步骤间上下文传递 (`{step_N_result}` 模板) + 失败续跑判断 |
-| MemoryManager | `agent/memory/memory.py` | 🔧 | 纯内存（重启丢失），超 50 条截断压缩（非 LLM 摘要，仅拼接），朴素子串搜索 |
-| Prompts | `agent/prompts/prompts.py` | 🔧 | 三层提示词：默认+石油化工领域+实验室自动化，含 `smart_fill_form` 使用示例 |
+| AgentManager | `agent/manager.py` | ✅ | v0.17.0 起主链路为原生 function calling：`chat_with_tools()` + `chat_stream_with_tools()`，模型输出结构化 tool_calls，工具结果 role="tool" 回传 |
+| Planner | `agent/planner/planner.py` | 🔧 保留 | 旧的"手写 JSON 计划"链路，v0.17.0 起不再作为主入口，保留供降级/测试 |
+| Executor | `agent/executor.py` | 🔧 保留 | 同上，`{step_N_result}` 模板传数据机制已退役（function calling 天然保留类型） |
+| MemoryManager | `agent/memory/memory.py` | 🔧 | 纯内存（重启丢失），工具往返不写入 memory（避免污染多轮对话） |
+| Prompts | `agent/prompts/prompts.py` | 🔧 | 三层提示词：默认+石油化工领域+实验室自动化 |
 
-**Planner 的关键风险**：工具调用靠 prompt engineering 让 LLM 输出 JSON，不用 function calling。`_extract_json_object()` 做了三层容错（直接 parse → 代码块提取 → 花括号匹配），但容错失败时降级为纯 LLM 步骤，用户无感知。当前 DeepSeek 表现良好；若切回本地小模型（如 qwen2.5）规划质量会下降。
+**function calling 主链路（v0.17.0）**：`ToolManager.list_tools_schema()` 把 19 个工具转成 OpenAI tools 协议，模型直接输出结构化 `tool_calls`（参数由协议保证合法 JSON），工具结果以 `role="tool"` 消息回传，模型自主决定继续/重试/给最终回答。含 `max_iterations=8` 防死循环。旧的 Planner（手写 JSON 计划）链路已从主调用方移除，文件保留待稳定后清理。
 
 ### 3.5 API 端点
 
@@ -262,17 +262,24 @@ Agent 内部管线:
 
 | 位置 | 版本号 |
 |---|---|
-| `backend/pyproject.toml` | 0.16.3 |
-| `backend/.env` (APP_VERSION) | 0.16.3 |
-| `backend/.env.example` | 0.16.3 |
-| `backend/app/core/config.py` (default) | 0.16.3 |
-| `backend/app/core/constants.py` | 0.16.3 |
-| `frontend/package.json` | 0.16.3 |
-| `frontend/src/App.tsx` | v0.16.3 |
-| `frontend/src/components/Sidebar.tsx` | v0.16.3 |
-| `docs/api.md` | 0.16.3 |
+| `backend/pyproject.toml` | 0.17.0 |
+| `backend/.env` (APP_VERSION) | 0.17.0 |
+| `backend/.env.example` | 0.17.0 |
+| `backend/app/core/config.py` (default) | 0.17.0 |
+| `backend/app/core/constants.py` | 0.17.0 |
+| `frontend/package.json` | 0.17.0 |
+| `frontend/src/App.tsx` | v0.17.0 |
+| `frontend/src/components/Sidebar.tsx` | v0.17.0 |
+| `docs/api.md` | 0.17.0 |
 
-## 八、v0.16.3 变更记录
+## 八、v0.17.0 变更记录
+
+1. **Agent 工具调用迁移到原生 function calling**：模型输出结构化 tool_calls，工具结果 role="tool" 回传，替代旧的"手写 JSON 计划"链路
+2. **`ToolManager.list_tools_schema()` + `_normalize_schema()`**：统一规范化工具参数为标准 JSON Schema（修复 14 个工具扁平格式导致 400 的 bug）
+3. **前端实时工具调用流**：`ToolCallInfo.step_id` → `call_index`，流式事件移除 planning
+4. **防死循环**：`max_iterations=8`，工具往返不写 Memory，图片走 chart 事件不进 LLM 上下文
+
+## 九、v0.16.3 变更记录
 
 1. **默认 LLM 修正为 DeepSeek**：`config.py` 默认值从 `ollama + qwen2.5` 改为 `openai + https://api.deepseek.com/v1 + deepseek-chat`（实际运行仍以 `.env` 为准）；CLAUDE.md、README、api.md 中 qwen2.5/Ollama 的误导性默认描述已清理，Ollama 仅保留为可选预留方案
 2. **版本号统一到 0.16.3**：代码 8 处 + `.env.example`/CLAUDE.md/DEVELOPMENT.md 同步

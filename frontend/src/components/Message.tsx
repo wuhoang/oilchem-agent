@@ -79,7 +79,7 @@ export function Message({ message }: MessageProps) {
                     <StatusIcon status={tc.status} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-500 text-xs">步骤 {tc.step_id}</span>
+                        <span className="text-slate-500 text-xs">工具调用 {tc.call_index}</span>
                         {tc.tool_name && (
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-600">
                             {tc.tool_name}

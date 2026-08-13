@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChartData, ChatMessage, StreamEvent, ToolCallInfo } from "../types";
+import type { ChartData, ChatMessage, StreamEvent } from "../types";
 import { sendChatMessageStream } from "../services/api";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
@@ -133,29 +133,8 @@ export function ChatWindow({ sessionId, onSessionCreated, onMessageComplete }: C
           (event: StreamEvent) => {
             if (abortRef.current?.signal.aborted) return;
             switch (event.type) {
-              case "planning": {
-                const steps = (event.data?.steps as Array<{
-                  step_id: number;
-                  tool_name: string | null;
-                  description: string;
-                }>) || [];
-                const toolCalls: ToolCallInfo[] = steps.map((s) => ({
-                  step_id: s.step_id,
-                  tool_name: s.tool_name,
-                  description: s.description,
-                  status: "pending",
-                }));
-                const goal = event.data?.goal as string || "";
-                updateAssistant((m) => ({
-                  ...m,
-                  thinking: `🎯 目标：${goal}\n📋 规划了 ${steps.length} 个步骤`,
-                  toolCalls: toolCalls.length ? toolCalls : undefined,
-                }));
-                break;
-              }
-
               case "tools": {
-                const stepId = event.data?.step_id as number;
+                const callIndex = event.data?.call_index as number;
                 const action = event.data?.action as string;
                 const toolName = event.data?.tool_name as string;
                 const description = event.data?.description as string;
@@ -163,14 +142,15 @@ export function ChatWindow({ sessionId, onSessionCreated, onMessageComplete }: C
                 if (action === "start") {
                   updateAssistant((m) => {
                     const calls = [...(m.toolCalls || [])];
-                    const idx = calls.findIndex((c) => c.step_id === stepId);
+                    // 按 call_index 更新，不存在则追加
+                    const idx = calls.findIndex((c) => c.call_index === callIndex);
                     if (idx >= 0) {
                       calls[idx] = { ...calls[idx], status: "running" };
                     } else {
                       calls.push({
-                        step_id: stepId,
+                        call_index: callIndex,
                         tool_name: toolName || null,
-                        description: description || `步骤 ${stepId}`,
+                        description: description || `工具调用 ${callIndex}`,
                         status: "running",
                       });
                     }
@@ -181,7 +161,7 @@ export function ChatWindow({ sessionId, onSessionCreated, onMessageComplete }: C
                   const success = event.data?.success as boolean;
                   updateAssistant((m) => {
                     const calls = [...(m.toolCalls || [])];
-                    const idx = calls.findIndex((c) => c.step_id === stepId);
+                    const idx = calls.findIndex((c) => c.call_index === callIndex);
                     if (idx >= 0) {
                       calls[idx] = {
                         ...calls[idx],

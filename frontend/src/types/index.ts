@@ -19,12 +19,12 @@ export interface ChatMessage {
   charts?: ChartData[];
 }
 
-/** 工具调用信息 */
+/** 工具调用信息（function calling 模式下按调用序号动态追加） */
 export interface ToolCallInfo {
-  step_id: number;
+  call_index: number;
   tool_name: string | null;
   description: string;
-  status: "pending" | "running" | "success" | "error";
+  status: "running" | "success" | "error";
   result?: string;
 }
 

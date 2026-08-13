@@ -7,6 +7,7 @@ Agent 管理器。
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from typing import Any, AsyncIterator
@@ -19,6 +20,7 @@ from app.agent.memory import MemoryManager
 from app.agent.planner import Plan, PlanStep, Planner
 from app.agent.prompts import get_system_prompt
 from app.llm import LLMClient, ChatMessage, MessageRole
+from app.tools.base import ToolResult
 from app.tools.manager import ToolManager
 
 
@@ -82,6 +84,7 @@ class AgentManager:
         self._memory = MemoryManager()
         self._planner = Planner(self._llm, self._tool_manager)
         self._executor = Executor(self._llm, self._tool_manager)
+        self._max_tool_iterations = 8  # function calling 最大往返轮数，防死循环
         logger.bind(component="agent").info("AgentManager initialized")
 
     async def chat(self, request: AgentChatRequest) -> AgentChatResponse:
@@ -194,6 +197,133 @@ class AgentManager:
                 error=str(exc),
                 execution_time_ms=elapsed,
             )
+
+    # -- function calling 主链路 -----------------------------------------------------------
+
+    async def chat_with_tools(
+        self,
+        request: AgentChatRequest,
+    ) -> AgentChatResponse:
+        """原生 function calling 对话（同步主入口）。
+
+        模型直接输出结构化 tool_calls，工具结果以 role="tool" 消息回传，
+        模型自主决定继续调用 / 重试 / 给出最终回答。替代旧的
+        Planner(手写 JSON 计划) → Executor 链路。
+
+        工具往返只在当次循环内有效，不写入 Memory（避免污染多轮对话）。
+        """
+        start = time.perf_counter()
+        session_id = request.session_id or str(uuid.uuid4())
+
+        self._memory.add_message(session_id, MessageRole.USER, request.message)
+
+        system_prompt = request.system_prompt or get_system_prompt()
+        messages: list[ChatMessage] = []
+        if system_prompt:
+            messages.append(ChatMessage(role=MessageRole.SYSTEM, content=system_prompt))
+        messages.extend(self._memory.get_context(session_id))
+
+        tools = self._tool_manager.list_tools_schema()
+
+        final_response = ""
+        tool_called = False
+        call_count = 0
+        try:
+            for _ in range(self._max_tool_iterations):
+                # 工具决策用非流式，规避流式 tool_calls 增量解析的复杂度
+                try:
+                    response = await self._llm.chat(
+                        messages,
+                        temperature=request.temperature or 0.7,
+                        max_tokens=4096,
+                        tools=tools,
+                    )
+                except Exception:
+                    # 降级：provider 不支持 tools 时，走单轮无工具对话
+                    logger.bind(component="agent").warning(
+                        "tools 请求失败，降级为无工具对话: session={}", session_id
+                    )
+                    fallback = await self._direct_chat(
+                        request.message,
+                        self._memory.get_context(session_id),
+                        system_prompt,
+                        request.temperature,
+                    )
+                    final_response = fallback
+                    break
+
+                if not response.choices:
+                    break
+
+                msg = response.choices[0].message
+
+                # 无 tool_calls → 最终回答
+                if not msg.tool_calls:
+                    final_response = msg.content or ""
+                    break
+
+                # 有 tool_calls → 执行工具
+                tool_called = True
+                messages.append(
+                    ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content=msg.content or "",
+                        tool_calls=msg.tool_calls,
+                    )
+                )
+                for tc in msg.tool_calls:
+                    call_count += 1
+                    fn = tc.get("function", {})
+                    tool_name = fn.get("name", "")
+                    try:
+                        args = json.loads(fn.get("arguments", "{}"))
+                    except json.JSONDecodeError:
+                        args = {}
+                    logger.bind(component="agent").info(
+                        "Agent tool call #{}/{}: {} args={}",
+                        call_count, self._max_tool_iterations, tool_name, args,
+                    )
+                    tool_result = await self._tool_manager.execute(tool_name, **args)
+                    messages.append(
+                        ChatMessage(
+                            role=MessageRole.TOOL,
+                            content=self._serialize_tool_result(tool_result),
+                            tool_call_id=tc.get("id", ""),
+                        )
+                    )
+            else:
+                # 达到最大轮数仍未收敛
+                final_response = "已达到最大工具调用轮数，任务未能完成，请重试或换一种问法。"
+                logger.bind(component="agent").warning(
+                    "Tool loop hit max iterations: session={}", session_id
+                )
+
+        except Exception as exc:
+            logger.bind(component="agent").error(
+                "Chat with tools failed for session {}: {}", session_id, exc
+            )
+            elapsed = int((time.perf_counter() - start) * 1000)
+            return AgentChatResponse(
+                session_id=session_id,
+                response=f"Agent error: {exc}",
+                success=False,
+                error=str(exc),
+                execution_time_ms=elapsed,
+            )
+
+        # 记录 assistant 回复到记忆
+        if final_response:
+            self._memory.add_message(session_id, MessageRole.ASSISTANT, final_response)
+
+        elapsed = int((time.perf_counter() - start) * 1000)
+        return AgentChatResponse(
+            session_id=session_id,
+            response=final_response,
+            plan_used=tool_called,
+            plan_steps=call_count,
+            success=True,
+            execution_time_ms=elapsed,
+        )
 
     # -- 会话管理 -----------------------------------------------------------
 
@@ -406,6 +536,196 @@ class AgentManager:
             done=True,
         )
 
+    async def chat_stream_with_tools(
+        self,
+        session_id: str,
+        message: str,
+        system_prompt: str | None = None,
+        temperature: float | None = None,
+    ) -> AsyncIterator[AgentStreamEvent]:
+        """流式 function calling 对话（SSE 主入口）。
+
+        事件序列：
+          thinking → tools(start/complete) × N → chart(可选) → chunk × M → done
+
+        工具决策阶段用非流式 chat（返回完整 tool_calls，规避流式增量解析），
+        最终回复阶段用流式 stream_chat（打字机效果）。
+        """
+        self._memory.add_message(session_id, MessageRole.USER, message)
+
+        yield AgentStreamEvent(
+            type="thinking",
+            session_id=session_id,
+            content="正在分析你的请求...",
+            data={"goal": message},
+            done=False,
+        )
+
+        messages: list[ChatMessage] = []
+        if system_prompt:
+            messages.append(ChatMessage(role=MessageRole.SYSTEM, content=system_prompt))
+        messages.extend(self._memory.get_context(session_id))
+
+        tools = self._tool_manager.list_tools_schema()
+        tool_desc_map = {t["name"]: t["description"] for t in self._tool_manager.list_available_tools()}
+
+        tool_called = False
+        call_count = 0
+        final_response = ""
+
+        try:
+            for _ in range(self._max_tool_iterations):
+                try:
+                    response = await self._llm.chat(
+                        messages,
+                        temperature=temperature or 0.7,
+                        max_tokens=4096,
+                        tools=tools,
+                    )
+                except Exception:
+                    # 降级：provider 不支持 tools，走无工具对话
+                    logger.bind(component="agent").warning(
+                        "tools 请求失败，降级为无工具对话: session={}", session_id
+                    )
+                    break
+
+                if not response.choices:
+                    break
+
+                msg = response.choices[0].message
+
+                # 无 tool_calls → 进入最终流式回复阶段
+                if not msg.tool_calls:
+                    break
+
+                tool_called = True
+                messages.append(
+                    ChatMessage(
+                        role=MessageRole.ASSISTANT,
+                        content=msg.content or "",
+                        tool_calls=msg.tool_calls,
+                    )
+                )
+                for tc in msg.tool_calls:
+                    call_count += 1
+                    fn = tc.get("function", {})
+                    tool_name = fn.get("name", "")
+                    try:
+                        args = json.loads(fn.get("arguments", "{}"))
+                    except json.JSONDecodeError:
+                        args = {}
+
+                    # tools start 事件
+                    yield AgentStreamEvent(
+                        type="tools",
+                        session_id=session_id,
+                        data={
+                            "call_index": call_count,
+                            "action": "start",
+                            "tool_name": tool_name,
+                            "description": tool_desc_map.get(tool_name, tool_name),
+                        },
+                        done=False,
+                    )
+
+                    tool_result = await self._tool_manager.execute(tool_name, **args)
+
+                    # 序列化后作为 tool 消息回传
+                    messages.append(
+                        ChatMessage(
+                            role=MessageRole.TOOL,
+                            content=self._serialize_tool_result(tool_result),
+                            tool_call_id=tc.get("id", ""),
+                        )
+                    )
+
+                    # tools complete 事件
+                    output_preview = ""
+                    if tool_result.data is not None:
+                        try:
+                            output_preview = str(tool_result.data)[:500]
+                        except Exception:
+                            output_preview = ""
+                    yield AgentStreamEvent(
+                        type="tools",
+                        session_id=session_id,
+                        data={
+                            "call_index": call_count,
+                            "action": "complete",
+                            "success": tool_result.success,
+                            "tool_name": tool_name,
+                            "output": output_preview or None,
+                            "error": tool_result.error,
+                        },
+                        done=False,
+                    )
+
+                    # 检测图表数据：base64 图片走 chart 事件，不进 LLM 上下文
+                    if tool_result.success and isinstance(tool_result.data, dict):
+                        if "image_base64" in tool_result.data:
+                            yield AgentStreamEvent(
+                                type="chart",
+                                session_id=session_id,
+                                data={
+                                    "call_index": call_count,
+                                    "chart_type": tool_result.data.get("chart_type", "plot"),
+                                    "image_base64": tool_result.data["image_base64"],
+                                    "image_mime": tool_result.data.get("image_mime", "image/png"),
+                                    "width": tool_result.data.get("width", 800),
+                                    "height": tool_result.data.get("height", 500),
+                                },
+                                done=False,
+                            )
+            else:
+                final_response = "已达到最大工具调用轮数，任务未能完成，请重试或换一种问法。"
+                logger.bind(component="agent").warning(
+                    "Tool loop hit max iterations: session={}", session_id
+                )
+
+            # 最终回复：流式输出（打字机效果）
+            if not final_response:
+                async for chunk in self._llm.stream_chat(
+                    messages,
+                    temperature=temperature or 0.7,
+                    max_tokens=4096,
+                ):
+                    if chunk.delta.content:
+                        final_response += chunk.delta.content
+                        yield AgentStreamEvent(
+                            type="chunk",
+                            session_id=session_id,
+                            content=chunk.delta.content,
+                            done=False,
+                        )
+
+        except Exception as exc:
+            logger.bind(component="agent").error(
+                "Stream chat with tools failed for session {}: {}", session_id, exc
+            )
+            yield AgentStreamEvent(
+                type="error",
+                session_id=session_id,
+                content=str(exc),
+                data={"detail": str(exc)},
+                done=True,
+            )
+            return
+
+        if final_response:
+            self._memory.add_message(session_id, MessageRole.ASSISTANT, final_response)
+
+        yield AgentStreamEvent(
+            type="done",
+            session_id=session_id,
+            content=final_response,
+            data={
+                "plan_used": tool_called,
+                "plan_steps": call_count,
+                "success": True,
+            },
+            done=True,
+        )
+
     # -- 内部方法 -----------------------------------------------------------
 
     @staticmethod
@@ -482,6 +802,29 @@ class AgentManager:
         except Exception:
             output_str = repr(output)
         return output_str
+
+    @staticmethod
+    def _serialize_tool_result(result: ToolResult) -> str:
+        """把工具执行结果序列化为回传给 LLM 的 tool 消息内容。
+
+        含 base64 图片的字典走 _sanitize_tool_output 变成文字描述
+        （图片已通过 SSE chart 事件给前端，LLM 不需要图片数据），
+        普通数据 JSON 序列化并截断，避免 token 爆炸。
+        """
+        if not result.success:
+            return f"工具执行失败: {result.error}"
+
+        data = result.data
+        if isinstance(data, dict) and "image_base64" in data:
+            return AgentManager._sanitize_tool_output(data)
+
+        try:
+            text = json.dumps(data, ensure_ascii=False, default=str)
+        except Exception:
+            text = str(data)
+        if len(text) > 3000:
+            text = text[:3000] + "\n...(内容已截断)"
+        return text
 
     async def _direct_chat(
         self,

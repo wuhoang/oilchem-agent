@@ -99,7 +99,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     agent = get_agent()
     from app.agent.manager import AgentChatRequest
 
-    result = await agent.chat(
+    result = await agent.chat_with_tools(
         AgentChatRequest(
             session_id=request.session_id,
             message=guard_result["sanitized_input"],
@@ -168,9 +168,8 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
     （避免阻塞实时体验），在最终 done 事件汇总全文后记录审计日志。
 
     事件类型：
-    - planning: 规划结果
-    - tools: 工具调用过程
-    - thinking: Agent 思考过程（含执行进展）
+    - thinking: Agent 开始处理
+    - tools: 工具调用过程（start/complete）
     - chunk: LLM 流式输出块
     - chart: 图表数据（base64 图片）
     - done: 对话完成
@@ -178,12 +177,10 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
 
     工作流程：
     1. 输入护栏检查
-    2. 生成规划（plan）
-    3. 推送 planning 事件（展示规划步骤）
-    4. 逐步执行规划中的工具步骤，每步推送 tools start/complete
-    5. 把所有工具执行结果作为 "tool" 消息注入 LLM 上下文
-    6. 调用 chat_stream 让 LLM 基于真实执行结果流式输出自然语言回复
-    7. 结束时对完整输出执行输出护栏检查并记录审计日志
+    2. 流式 function calling 循环：模型自主决定调工具 / 给最终回答
+    3. 工具结果以 role="tool" 消息回传，模型据此继续
+    4. 最终回复阶段流式输出
+    5. 结束时对完整输出执行输出护栏检查并记录审计日志
     """
     # 输入护栏：Prompt 注入检测 + 敏感信息脱敏
     input_guard = InputGuardrail()
@@ -200,126 +197,13 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             session_id = request.session_id or str(uuid.uuid4())
             system_prompt = request.system_prompt or get_system_prompt()
 
-            # 1. 生成规划
-            plan = await agent.plan(
-                safe_message, session_id, system_prompt
-            )
-
-            # 安全上限：超过 8 步时只保留前 8 步，避免过长的链式调用
-            if len(plan.steps) > 8:
-                plan = plan.model_copy(
-                    update={"steps": plan.steps[:8]}
-                )
-
-            # 推送 planning 事件
-            planning_event = AgentStreamEvent(
-                type="planning",
-                session_id=session_id,
-                data={
-                    "goal": plan.goal,
-                    "steps": [s.model_dump() for s in plan.steps],
-                    "needs_clarification": plan.needs_clarification,
-                    "clarification_question": plan.clarification_question,
-                },
-                done=False,
-            )
-            yield f"data: {json.dumps(planning_event.model_dump(), ensure_ascii=False)}\n\n"
-
-            # 2. 处理需要澄清的情况
-            if plan.needs_clarification:
-                clarification_event = AgentStreamEvent(
-                    type="done",
-                    session_id=session_id,
-                    content=plan.clarification_question
-                    or "需要更多信息。",
-                    data={"success": False, "reason": "needs_clarification"},
-                    done=True,
-                )
-                yield f"data: {json.dumps(clarification_event.model_dump(), ensure_ascii=False)}\n\n"
-                return
-
-            # 3. 逐步执行规划中的工具步骤
-            step_results = []
-            if plan.steps:
-                step_context: dict = {}
-                for step in plan.steps:
-                    step_id = step.step_id
-
-                    # 推送工具开始事件
-                    tool_start_event = AgentStreamEvent(
-                        type="tools",
-                        session_id=session_id,
-                        data={
-                            "step_id": step_id,
-                            "action": "start",
-                            "description": step.description,
-                            "tool_name": step.tool_name,
-                        },
-                        done=False,
-                    )
-                    yield f"data: {json.dumps(tool_start_event.model_dump(), ensure_ascii=False)}\n\n"
-
-                    # 执行步骤
-                    step_result = await agent.execute_step(
-                        step, step_context
-                    )
-                    step_results.append(step_result)
-
-                    # 更新上下文供后续步骤使用
-                    step_context[f"step_{step_id}_result"] = (
-                        step_result.output
-                    )
-
-                    # 推送工具完成事件
-                    output_preview = ""
-                    if step_result.output is not None:
-                        try:
-                            output_str = str(step_result.output)
-                            output_preview = output_str[:500]
-                        except Exception:
-                            output_preview = ""
-                    tool_done_event = AgentStreamEvent(
-                        type="tools",
-                        session_id=session_id,
-                        data={
-                            "step_id": step_id,
-                            "action": "complete",
-                            "success": step_result.success,
-                            "tool_name": step.tool_name,
-                            "output": output_preview or None,
-                            "error": step_result.error,
-                        },
-                        done=False,
-                    )
-                    yield f"data: {json.dumps(tool_done_event.model_dump(), ensure_ascii=False)}\n\n"
-
-                    # 检测图表数据：如果工具返回了 image_base64，发送 chart 事件
-                    if step_result.success and isinstance(step_result.output, dict):
-                        if "image_base64" in step_result.output:
-                            chart_event = AgentStreamEvent(
-                                type="chart",
-                                session_id=session_id,
-                                data={
-                                    "step_id": step_id,
-                                    "chart_type": step_result.output.get("chart_type", "plot"),
-                                    "image_base64": step_result.output["image_base64"],
-                                    "image_mime": step_result.output.get("image_mime", "image/png"),
-                                    "width": step_result.output.get("width", 800),
-                                    "height": step_result.output.get("height", 500),
-                                },
-                                done=False,
-                            )
-                            yield f"data: {json.dumps(chart_event.model_dump(), ensure_ascii=False)}\n\n"
-
-            # 4. 调用 agent.chat_stream 进行真正的 LLM 流式输出
-            #    把 step_results 注入，让 LLM 基于真实执行结果生成自然语言总结
-            async for event in agent.chat_stream(
+            # 1. 流式 function calling 对话
+            #    事件序列：thinking → tools(start/complete) × N → chart(可选) → chunk → done
+            async for event in agent.chat_stream_with_tools(
                 session_id=session_id,
                 message=safe_message,
-                plan=plan,
                 system_prompt=system_prompt,
                 temperature=request.temperature,
-                step_results=step_results,
             ):
                 if event.type == "chunk" and event.content:
                     full_response += event.content
@@ -327,7 +211,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                     full_response = event.content
                 yield f"data: {json.dumps(event.model_dump(), ensure_ascii=False)}\n\n"
 
-            # 5. 输出护栏：对完整响应做安全审计（流式过程中不做拦截以保证实时体验）
+            # 2. 输出护栏：对完整响应做安全审计（流式过程中不做拦截以保证实时体验）
             if full_response:
                 output_guard = OutputGuardrail()
                 output_check = output_guard.check(full_response)
@@ -338,8 +222,8 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                     )
                 else:
                     logger.bind(component="chat").info(
-                        "Stream chat completed: session={}, plan_steps={}, response_len={}",
-                        session_id, len(plan.steps), len(full_response),
+                        "Stream chat completed: session={}, response_len={}",
+                        session_id, len(full_response),
                     )
 
         except Exception as exc:

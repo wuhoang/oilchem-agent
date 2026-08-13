@@ -12,7 +12,7 @@ Returns the application banner.
 ```json
 {
   "name": "OilChem Agent",
-  "version": "0.16.3",
+  "version": "0.17.0",
   "status": "running"
 }
 ```

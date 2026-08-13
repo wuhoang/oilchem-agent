@@ -5,6 +5,26 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-08-13
+
+### Added
+
+- **Agent 工具调用迁移到原生 function calling**：模型直接输出结构化 `tool_calls`（参数由 API 协议保证合法），工具结果以 `role="tool"` 消息回传，模型自主决定继续调用/重试/给最终回答
+- `ToolManager.list_tools_schema()`：把工具元数据转为 OpenAI tools 协议格式，统一规范化扁平参数为 JSON Schema
+- `AgentManager.chat_with_tools()` / `chat_stream_with_tools()`：function calling 循环主链路，含 `max_iterations=8` 防死循环、工具往返不写 Memory、图片数据走 SSE chart 事件不进 LLM 上下文
+- `ChatMessage` 增加 `tool_call_id` / `tool_calls` 字段；`LLMClient.chat()` 透传 `tools` 参数
+- provider 消息序列化支持 `role="tool"` 消息和 assistant `tool_calls`；响应解析透传 `tool_calls`
+
+### Fixed
+
+- 工具 parameters 混合格式导致 function calling 400：14 个工具的扁平参数字典被规范化为标准 JSON Schema
+
+### Changed
+
+- 前端"思考过程"从"预先生成的计划清单"改为"实时工具调用流"（`ToolCallInfo.step_id` → `call_index`）
+- 流式端点事件序列：移除 planning 事件，改为 thinking → tools → chunk → done
+- 旧的 Planner(手写 JSON 计划) / Executor 链路保留但主调用方已切到 function calling
+
 ## [0.16.3] - 2026-08-13
 
 ### Fixed

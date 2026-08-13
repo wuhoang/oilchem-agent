@@ -6,6 +6,40 @@
 
 ---
 
+## [0.17.0] — 2026-08-13
+
+### Added
+
+- **Agent 工具调用迁移到原生 function calling（核心重构）**
+  - 背景：旧链路是 Planner 让 LLM 手写 JSON 计划 → 正则容错解析 → Executor 执行 → 字符串模板传数据，痛点：参数写错一步就废、静默降级成纯聊天、步骤间字段名写错断链、一个任务 5-8 次 LLM 调用
+  - 新链路：模型直接输出结构化 `tool_calls`，工具结果以 `role="tool"` 消息回传，模型自主决定继续/重试/给最终回答
+  - `ToolManager.list_tools_schema()`：工具元数据 → OpenAI tools 协议格式
+  - `AgentManager.chat_with_tools()`：同步主入口，`max_iterations=8` 防死循环，工具往返不写 Memory（避免污染多轮对话），图片数据走 SSE chart 事件不进 LLM 上下文
+  - `AgentManager.chat_stream_with_tools()`：流式 SSE 主入口，工具决策用非流式（规避流式 tool_calls 增量解析），最终回复用流式（打字机效果）
+  - `ChatMessage` 增加 `tool_call_id`/`tool_calls` 字段；`LLMClient.chat()` 透传 `tools` 参数
+  - `provider.py`：消息序列化支持 `role="tool"` 和 assistant `tool_calls`；`_parse_response` 透传 `tool_calls`（Ollama 版同步适配）
+
+### Fixed
+
+- **工具 parameters 混合格式导致 400（关键 bug）**：`file_tools.py` 的 5 个工具用标准 JSON Schema（`type:object`+`properties`），其余 14 个工具用扁平字典（`{"device_id": {...}}`）。扁平格式被 DeepSeek function calling 判非法返回 400。修复：`_normalize_schema()` 把扁平字典包装成标准格式（required=[]）
+
+### Changed
+
+- **前端"思考过程"改为"实时工具调用流"**：不再有预生成计划清单，改为动态追加工具调用项（`ToolCallInfo.step_id` → `call_index`）
+- **流式事件序列**：移除 planning 事件，改为 `thinking → tools(start/complete) → chunk → done`
+- **旧链路保留但主调用方切换**：`planner.py`/`executor.py` 文件保留（暂不删除，稳定后清理），`chat()`/`chat_stream()`/`plan()`/`execute_step()` 方法保留向后兼容，但 `/chat` 和 `/chat/stream` 端点已切到 function calling 新方法
+
+### 验证
+
+- 纯对话（"你好"）→ 无 tool_calls，直接文本回复 ✅
+- 历史趋势（"rct-01 过去60分钟温度趋势"）→ 正确调用 `query_hardware_history` ✅
+- 文件任务（"读取 hardware_info 目录的 json"）→ 正确调用 `list_files` + `read_file` ✅
+- SSE 事件序列 → `thinking → tools(start) → tools(complete) → chunk × N → done` ✅
+- `pytest` 2 个 smoke test 通过 ✅
+- 前端 `tsc -b` 通过 ✅
+
+---
+
 ## [0.16.3] — 2026-08-13
 
 ### Fixed

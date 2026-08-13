@@ -73,6 +73,7 @@ class LLMClient:
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        tools: list[dict] | None = None,
     ) -> ChatCompletionResponse:
         """发送非流式聊天请求。
 
@@ -86,6 +87,8 @@ class LLMClient:
             采样温度，默认使用配置值。
         max_tokens:
             最大生成 token 数，默认使用配置值。
+        tools:
+            可用工具列表（OpenAI tools 协议），用于 function calling。
 
         Returns
         -------
@@ -98,6 +101,7 @@ class LLMClient:
             temperature=temperature if temperature is not None else 0.7,
             max_tokens=max_tokens if max_tokens is not None else 2048,
             stream=False,
+            tools=tools,
         )
         return await self._chat_with_retry(request)
 

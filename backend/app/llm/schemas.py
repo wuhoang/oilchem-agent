@@ -35,6 +35,9 @@ class ChatMessage(BaseModel):
 
     role: MessageRole = Field(..., description="消息角色")
     content: str = Field(..., description="消息文本内容")
+    # function calling 支持
+    tool_call_id: str | None = Field(default=None, description="工具调用 ID（role=tool 消息使用）")
+    tool_calls: list[dict] | None = Field(default=None, description="工具调用请求（assistant 消息使用）")
 
     model_config = {"json_schema_extra": {"example": {"role": "user", "content": "你好"}}}
 

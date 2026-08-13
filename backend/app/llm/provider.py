@@ -136,10 +136,16 @@ class BaseProvider(ABC):
         self, request: ChatCompletionRequest, stream: bool
     ) -> dict:
         """将 ChatCompletionRequest 转换为提供商特定的请求体。"""
-        messages = [
-            {"role": m.role.value, "content": m.content}
-            for m in request.messages
-        ]
+        messages = []
+        for m in request.messages:
+            msg: dict = {"role": m.role.value, "content": m.content}
+            # role="tool" 消息需要带 tool_call_id
+            if m.tool_call_id:
+                msg["tool_call_id"] = m.tool_call_id
+            # assistant 消息可能带 tool_calls（函数调用请求）
+            if m.tool_calls:
+                msg["tool_calls"] = m.tool_calls
+            messages.append(msg)
         payload: dict = {
             "model": request.model,
             "messages": messages,
@@ -156,13 +162,17 @@ class BaseProvider(ABC):
         choices = []
         for c in data.get("choices", []):
             msg = c.get("message", {})
+            choice_msg: dict = {
+                "role": msg.get("role", "assistant"),
+                "content": msg.get("content", ""),
+            }
+            # 透传 function calling 的 tool_calls（非流式完整返回）
+            if msg.get("tool_calls"):
+                choice_msg["tool_calls"] = msg["tool_calls"]
             choices.append(
                 {
                     "index": c.get("index", 0),
-                    "message": {
-                        "role": msg.get("role", "assistant"),
-                        "content": msg.get("content", ""),
-                    },
+                    "message": choice_msg,
                     "finish_reason": c.get("finish_reason"),
                 }
             )
@@ -274,15 +284,19 @@ class OllamaProvider(BaseProvider):
     def _parse_response(self, data: dict) -> ChatCompletionResponse:
         """Ollama 响应格式略有不同，需要适配。"""
         message = data.get("message", {})
+        choice_msg: dict = {
+            "role": message.get("role", "assistant"),
+            "content": message.get("content", ""),
+        }
+        # 透传 function calling 的 tool_calls（Ollama 新版支持）
+        if message.get("tool_calls"):
+            choice_msg["tool_calls"] = message["tool_calls"]
         return ChatCompletionResponse(
             id=data.get("id", ""),
             choices=[
                 {
                     "index": 0,
-                    "message": {
-                        "role": message.get("role", "assistant"),
-                        "content": message.get("content", ""),
-                    },
+                    "message": choice_msg,
                     "finish_reason": data.get("done_reason"),
                 }
             ],
