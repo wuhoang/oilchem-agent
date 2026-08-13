@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # ---- App ----
     app_name: str = Field(default="OilChem Agent", alias="APP_NAME")
-    version: str = Field(default="0.1.0", alias="APP_VERSION")
+    version: str = Field(default="0.16.1", alias="APP_VERSION")
     env: str = Field(default="dev", alias="ENV")
     debug: bool = Field(default=True, alias="DEBUG")
 
@@ -43,12 +43,42 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, alias="PORT")
 
     # ---- LLM ----
-    openai_base_url: str = Field(default="", alias="OPENAI_BASE_URL")
+    llm_provider: str = Field(default="ollama", alias="LLM_PROVIDER")
+    openai_base_url: str = Field(default="http://localhost:11434", alias="OPENAI_BASE_URL")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
-    model_name: str = Field(default="", alias="MODEL_NAME")
+    model_name: str = Field(default="qwen2.5", alias="MODEL_NAME")
+    llm_timeout: float = Field(default=30.0, alias="LLM_TIMEOUT")
+    llm_max_retries: int = Field(default=2, alias="LLM_MAX_RETRIES")
+    llm_temperature: float = Field(default=0.7, alias="LLM_TEMPERATURE")
+    llm_max_tokens: int = Field(default=2048, alias="LLM_MAX_TOKENS")
+
+    # ---- File System ----
+    file_allowed_paths: str = Field(default="", alias="FILE_ALLOWED_PATHS")
+    file_watch_paths: str = Field(default="", alias="FILE_WATCH_PATHS")
+    file_debounce_ms: int = Field(default=2000, alias="FILE_DEBOUNCE_MS")
+
+    # ---- Hardware Telemetry ----
+    hardware_collect_interval: float = Field(
+        default=10.0, alias="HARDWARE_COLLECT_INTERVAL"
+    )
+    hardware_history_retention_minutes: int = Field(
+        default=1440, alias="HARDWARE_HISTORY_RETENTION_MINUTES"
+    )
 
     # ---- Logging ----
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+
+    # ---- Database ----
+    database_url: str = Field(
+        default="sqlite+aiosqlite:///./oilchem_agent.db",
+        alias="DATABASE_URL",
+    )
+    db_echo: bool = Field(default=False, alias="DB_ECHO")
+
+    # ---- Auth ----
+    auth_enabled: bool = Field(default=False, alias="AUTH_ENABLED")
+    jwt_secret_key: str = Field(default="change-me-in-production", alias="JWT_SECRET_KEY")
+    jwt_expire_minutes: int = Field(default=60, alias="JWT_EXPIRE_MINUTES")
 
     # ---- API ----
     api_v1_prefix: str = "/api/v1"
