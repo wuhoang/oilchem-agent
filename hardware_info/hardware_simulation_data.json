@@ -1,0 +1,103 @@
+{
+  "generated_at": "2026-08-08T10:30:00",
+  "description": "模拟硬件信息数据 - 石油钻井液测试设备",
+  "devices": {
+    "高温高压失水仪": [
+      {
+        "device_id": "HTHP-01",
+        "model": "GGS42-2A",
+        "parameters": {
+          "运行时间_min": 30,
+          "上压力_MPa": 3.5,
+          "下压力_MPa": 0.7,
+          "漏失量曲线": [
+            {"time_min": 0, "leakage_ml": 0.0},
+            {"time_min": 5, "leakage_ml": 2.5},
+            {"time_min": 10, "leakage_ml": 4.8},
+            {"time_min": 15, "leakage_ml": 6.9},
+            {"time_min": 20, "leakage_ml": 8.7},
+            {"time_min": 25, "leakage_ml": 10.2},
+            {"time_min": 30, "leakage_ml": 11.5}
+          ]
+        }
+      },
+      {
+        "device_id": "HTHP-02",
+        "model": "GGS42-2A",
+        "parameters": {
+          "运行时间_min": 30,
+          "上压力_MPa": 3.5,
+          "下压力_MPa": 0.7,
+          "漏失量曲线": [
+            {"time_min": 0, "leakage_ml": 0.0},
+            {"time_min": 5, "leakage_ml": 3.1},
+            {"time_min": 10, "leakage_ml": 5.6},
+            {"time_min": 15, "leakage_ml": 7.8},
+            {"time_min": 20, "leakage_ml": 9.5},
+            {"time_min": 25, "leakage_ml": 11.0},
+            {"time_min": 30, "leakage_ml": 12.3}
+          ]
+        }
+      }
+    ],
+    "六速流变仪": [
+      {
+        "device_id": "Rheo-01",
+        "model": "ZNN-D6",
+        "parameters": {
+          "600转读数": 45,
+          "300转读数": 28,
+          "6转读数": 6,
+          "3转读数": 4
+        }
+      },
+      {
+        "device_id": "Rheo-02",
+        "model": "ZNN-D6",
+        "parameters": {
+          "600转读数": 52,
+          "300转读数": 33,
+          "6转读数": 8,
+          "3转读数": 5
+        }
+      }
+    ],
+    "稠化仪": [
+      {
+        "device_id": "Thick-01",
+        "model": "OWC-2000D",
+        "parameters": {
+          "运行时间_min": 120,
+          "稠化时间_min": 85,
+          "温度曲线": [
+            {"time_min": 0, "temp_C": 25},
+            {"time_min": 15, "temp_C": 60},
+            {"time_min": 30, "temp_C": 82},
+            {"time_min": 45, "temp_C": 88},
+            {"time_min": 60, "temp_C": 90},
+            {"time_min": 90, "temp_C": 90},
+            {"time_min": 120, "temp_C": 90}
+          ]
+        }
+      },
+      {
+        "device_id": "Thick-02",
+        "model": "OWC-2000D",
+        "parameters": {
+          "运行时间_min": 150,
+          "稠化时间_min": 102,
+          "温度曲线": [
+            {"time_min": 0, "temp_C": 25},
+            {"time_min": 15, "temp_C": 55},
+            {"time_min": 30, "temp_C": 75},
+            {"time_min": 45, "temp_C": 85},
+            {"time_min": 60, "temp_C": 88},
+            {"time_min": 90, "temp_C": 90},
+            {"time_min": 120, "temp_C": 90},
+            {"time_min": 150, "temp_C": 90}
+          ]
+        }
+      }
+    ]
+  }
+}
