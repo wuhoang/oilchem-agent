@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AgentManager.chat_with_tools()` / `chat_stream_with_tools()`：function calling 循环主链路，含 `max_iterations=8` 防死循环、工具往返不写 Memory、图片数据走 SSE chart 事件不进 LLM 上下文
 - `ChatMessage` 增加 `tool_call_id` / `tool_calls` 字段；`LLMClient.chat()` 透传 `tools` 参数
 - provider 消息序列化支持 `role="tool"` 消息和 assistant `tool_calls`；响应解析透传 `tool_calls`
+- **系统顶层设计文档**（`docs/system_design.md`）：定义系统定位（实验管理系统与硬件设备之间的中间层）、演示版/生产版目标、M1-M7 模块划分（数据模型/编排引擎/设备驱动/系统对接/交互层/数据采集/审计追溯）及模块构建依赖顺序
 
 ### Fixed
 

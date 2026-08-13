@@ -18,6 +18,11 @@
   - `AgentManager.chat_stream_with_tools()`：流式 SSE 主入口，工具决策用非流式（规避流式 tool_calls 增量解析），最终回复用流式（打字机效果）
   - `ChatMessage` 增加 `tool_call_id`/`tool_calls` 字段；`LLMClient.chat()` 透传 `tools` 参数
   - `provider.py`：消息序列化支持 `role="tool"` 和 assistant `tool_calls`；`_parse_response` 透传 `tool_calls`（Ollama 版同步适配）
+- **系统顶层设计文档（`docs/system_design.md`）**
+  - 定位：系统是"实验管理系统（LIMS）与实验硬件设备之间的中间层"，核心价值为人-机-料-数据全程关联可追溯；交互层（Web + Agent）只是顺带门面
+  - 目标分两层：**演示版**（PoC，向管理者展示"选方案→一键实验→设备逐步执行→实时数据→全程追溯"的自动化主线，设备/管理系统均为 Mock 但数据模型与流程为真实设计）；**生产版**（对接真实 LIMS 拉取实验设计/回传结果，真实设备协议 RS232/USB/GPIB，自动实验无人值守闭环，LLM 不进执行主链路）
+  - 模块划分 M1-M7：M1 数据模型（含 materials 物料主数据与 samples 样品实例的区分）、M2 编排引擎（任务状态机 + ExperimentStep 步骤模型 + 异常冻结/重试/跳步/中止恢复策略）、M3 设备驱动抽象（同步 execute_step + 遥测独立轮询的接口契约，MockDriver 剧本引擎/Serial/Http/Gpib 驱动可互换）、M4 管理系统对接（演示版 Mock 源占位）、M5 交互层（看板/工作台/追溯三视角 + 实验域 Agent 工具，现有 5 个 Tab 保留为辅助工作台）、M6 数据采集（实验级 measurements + 复用 telemetry）、M7 审计追溯
+  - 构建顺序按依赖而非时间排期：M1 → M3 → M2 → M6 → M5 → M7 → M4（M3 不依赖 M2 可独立先行验证）
 
 ### Fixed
 
