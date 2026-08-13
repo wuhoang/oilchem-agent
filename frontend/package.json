@@ -1,7 +1,7 @@
 {
   "name": "oilchem-agent-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.16.1",
   "type": "module",
   "description": "OilChem Agent frontend (Step 0 bootstrap).",
   "scripts": {
@@ -13,7 +13,9 @@
   },
   "dependencies": {
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

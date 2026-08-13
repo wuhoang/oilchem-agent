@@ -1,3 +1,120 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* Markdown body styles */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  font-weight: 600;
+  margin-top: 0.75rem;
+  margin-bottom: 0.4rem;
+  line-height: 1.3;
+}
+.markdown-body h1 { font-size: 1.3rem; }
+.markdown-body h2 { font-size: 1.15rem; }
+.markdown-body h3 { font-size: 1.05rem; }
+.markdown-body h4 { font-size: 0.95rem; }
+
+.markdown-body p {
+  margin: 0.4rem 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0.4rem 0;
+  padding-left: 1.4rem;
+}
+.markdown-body ul { list-style: disc; }
+.markdown-body ol { list-style: decimal; }
+.markdown-body li { margin: 0.15rem 0; }
+
+.markdown-body strong { font-weight: 600; }
+.markdown-body em { font-style: italic; }
+
+.markdown-body a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 0.75rem;
+  color: #64748b;
+  margin: 0.5rem 0;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 0.75rem 0;
+}
+
+.markdown-body del { text-decoration: line-through; opacity: 0.7; }
+
+/* User bubble markdown overrides (for readability on blue bg) */
+.bg-blue-600 .markdown-body h1,
+.bg-blue-600 .markdown-body h2,
+.bg-blue-600 .markdown-body h3,
+.bg-blue-600 .markdown-body h4,
+.bg-blue-600 .markdown-body p,
+.bg-blue-600 .markdown-body li,
+.bg-blue-600 .markdown-body strong,
+.bg-blue-600 .markdown-body em {
+  color: inherit;
+}
+.bg-blue-600 .markdown-body code {
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+}
+.bg-blue-600 .markdown-body blockquote {
+  border-color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ErrorToast 滑入动画 */
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slide-down 0.25s ease-out;
+}
