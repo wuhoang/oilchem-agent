@@ -1,7 +1,7 @@
 # 文件访问范围说明
 
 ## 可访问根目录
-- H:\trae-project\oilchem-agent
+- 由后端配置 `FILE_ALLOWED_PATHS` 决定（未配置则放行全部路径，开发模式）
 
 ## 支持的文件类型
 - 文本文件：CSV、JSON、Markdown、Python、TXT、YAML、LOG 等

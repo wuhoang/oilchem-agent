@@ -5,6 +5,13 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.2] - 2026-08-13
+
+### Fixed
+
+- 移除 3 处硬编码本地路径：`FileBrowser.tsx` 文件浏览器默认目录改为空字符串，后端 `list_files` 等工具对空路径回退到项目根目录（代码相对定位，不写死本机路径）；Planner 系统提示词中的示例路径改为通用占位写法；`docs/file_access_scope.md` 改为描述 `FILE_ALLOWED_PATHS` 配置
+- 版本号全量统一：`.env.example`、CLAUDE.md、DEVELOPMENT.md、README.md 从过期的 0.15.0/0.16.0 同步到 0.16.2
+
 ## [0.16.1] - 2026-08-10
 
 ### Changed

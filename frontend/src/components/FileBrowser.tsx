@@ -17,7 +17,7 @@ const OFFICE_EXTENSIONS = [".xlsx", ".xls", ".docx", ".doc", ".pptx", ".ppt"];
 const CODE_EXTENSIONS = [".py", ".js", ".ts", ".tsx", ".jsx", ".json", ".css", ".html", ".md", ".yaml", ".yml", ".sh", ".sql"];
 
 export function FileBrowser({ onFileOpen }: FileBrowserProps) {
-  const [currentPath, setCurrentPath] = useState<string>("H:\\trae-project\\oilchem-agent");
+  const [currentPath, setCurrentPath] = useState<string>("");
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
   const [previewData, setPreviewData] = useState<FilePreviewResponse | null>(null);

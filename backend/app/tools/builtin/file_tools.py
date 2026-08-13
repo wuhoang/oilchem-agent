@@ -20,6 +20,9 @@ from app.tools.registry import register_tool
 # 路径安全检查
 # ---------------------------------------------------------------------------
 
+# 项目根目录（通过代码相对定位，不依赖启动时的工作目录）
+PROJECT_ROOT: Path = Path(__file__).resolve().parents[4]
+
 def _get_allowed_paths() -> list[Path]:
     """获取允许操作的路径白名单。"""
     from app.core.config import settings
@@ -49,6 +52,8 @@ def _is_path_allowed(target: Path) -> bool:
 
 def _resolve_path(path_str: str) -> Path:
     """解析路径并检查安全性。"""
+    if not path_str or not path_str.strip():
+        path_str = str(PROJECT_ROOT)
     target = Path(path_str).expanduser().resolve()
     if not _is_path_allowed(target):
         raise PermissionError(

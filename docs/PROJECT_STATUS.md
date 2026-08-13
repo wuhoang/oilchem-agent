@@ -1,7 +1,7 @@
-# OilChem Agent 项目状态报告 (v0.16.1)
+# OilChem Agent 项目状态报告 (v0.16.2)
 
-> 更新：2026-08-10
-> 基于全部源码逐文件阅读，不含推测。v0.16.1 变更：硬件工具使用指南（区分实时/历史查询）。
+> 更新：2026-08-13
+> 基于全部源码逐文件阅读，不含推测。v0.16.2 变更：移除硬编码本地路径、版本号全量统一。
 
 ---
 
@@ -262,16 +262,22 @@ Agent 内部管线:
 
 | 位置 | 版本号 |
 |---|---|
-| `backend/pyproject.toml` | 0.16.1 |
-| `backend/.env` (APP_VERSION) | 0.16.1 |
-| `backend/app/core/config.py` (default) | 0.16.1 |
-| `backend/app/core/constants.py` | 0.16.1 |
-| `frontend/package.json` | 0.16.1 |
-| `frontend/src/App.tsx` | v0.16.1 |
-| `frontend/src/components/Sidebar.tsx` | v0.16.1 |
-| `docs/api.md` | 0.16.1 |
+| `backend/pyproject.toml` | 0.16.2 |
+| `backend/.env` (APP_VERSION) | 0.16.2 |
+| `backend/.env.example` | 0.16.2 |
+| `backend/app/core/config.py` (default) | 0.16.2 |
+| `backend/app/core/constants.py` | 0.16.2 |
+| `frontend/package.json` | 0.16.2 |
+| `frontend/src/App.tsx` | v0.16.2 |
+| `frontend/src/components/Sidebar.tsx` | v0.16.2 |
+| `docs/api.md` | 0.16.2 |
 
-## 八、v0.16.1 变更记录
+## 八、v0.16.2 变更记录
+
+1. **移除 3 处硬编码本地路径**：`FileBrowser.tsx` 默认目录改为空字符串，后端 `_resolve_path()` 对空路径回退到项目根目录（`Path(__file__).parents[4]` 代码相对定位），行为与原默认一致；Planner 提示词示例路径改为通用写法；`file_access_scope.md` 改为描述 `FILE_ALLOWED_PATHS` 配置
+2. **版本号全量统一**：`.env.example`/CLAUDE.md/DEVELOPMENT.md/README.md 同步到 0.16.2，与代码 9 处版本号一致
+
+## 九、v0.16.1 变更记录
 
 1. **系统提示词新增「硬件设备使用指南」**：列出 5 台设备及指标，明确 `read_hardware`(实时) / `query_hardware_history`(历史) 分工，给出画趋势图标准步骤
 2. **工具描述优化**：两个硬件工具 description 各自强调实时/历史定位，device_id 参数补充中文设备名

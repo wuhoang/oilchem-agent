@@ -17,7 +17,7 @@
 
 **OilChem Agent** — 石油化工/化学实验室 AI 助手，定位为「人-硬件-软件-网页」的中间层。
 
-- 当前版本：0.15.0，在 `develop` 分支开发
+- 当前版本：0.16.2，在 `develop` 分支开发
 - 技术栈：Python 3.12 + FastAPI + SQLAlchemy (aiosqlite) | React 18 + TypeScript + Vite + TailwindCSS
 - 默认 LLM：Ollama + qwen2.5（本地 `http://localhost:11434`）。用户不想为此花大钱上云端强模型
 - 用户背景：油化领域出身，软件不太熟但对硬件接口更了解

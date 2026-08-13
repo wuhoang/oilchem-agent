@@ -6,6 +6,19 @@
 
 ---
 
+## [0.16.2] — 2026-08-13
+
+### Fixed
+
+- **移除 3 处硬编码本地路径**（仓库公开后检查发现）
+  - `frontend/src/components/FileBrowser.tsx`：默认目录从 `H:\trae-project\oilchem-agent` 改为空字符串
+  - `backend/app/tools/builtin/file_tools.py`：`_resolve_path()` 对空路径回退到项目根目录，通过 `Path(__file__).resolve().parents[4]` 代码相对定位（不依赖启动工作目录、不写死本机路径），效果与前端原默认目录完全一致
+  - `backend/app/agent/planner/planner.py`：系统提示词中示例路径改为通用写法 `C:\Users\<用户名>\<项目名>`
+  - `docs/file_access_scope.md`：改为描述 `FILE_ALLOWED_PATHS` 配置而非写死具体目录
+- **版本号全量统一到 0.16.2**：`.env.example`、CLAUDE.md、DEVELOPMENT.md、README.md 之前停留在 0.15.0/0.16.0 未同步，本次与代码 8 处版本号（config/constants/pyproject/.env/package.json/package-lock/App/Sidebar/api.md）一并统一
+
+---
+
 ## [0.16.1] — 2026-08-10
 
 ### Changed
