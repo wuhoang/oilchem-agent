@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **实验恢复**：orchestrator 加 `recover()`，main.py 启动时恢复重启前 status 为「执行中」的实验（重置卡住的 running 步骤 + 重启后台主循环），修复进程重启后实验卡死
 - **send_command 进抽象接口**：`DeviceDriver` 基类补 `send_command` 抽象方法（原仅 MockDriver 有，换真实驱动会崩）
 - **旧指标名修正**：query_hardware_history 参数描述从旧设备指标（温度/压力/液位）改为真实指标（温度/漏失量/转读数/稠化时间）
+- **SSE 路由顺序**：`GET /experiments/events` 原注册在 `GET /experiments/{experiment_id}` 之后，被参数路由抢先匹配成「实验不存在: events」导致 SSE 404、前端实时更新失效；挪到参数路由之前
+- **recover 只恢复「执行中」**：原 recover 查询含死状态「待执行」（代码里从无地方设置该状态），改为只恢复 running
+- **设备数据加载容错**：`_register_devices` 加载仿真数据失败时记警告并注册 0 台，不再抛异常导致硬件端点 500
+- **结果查询统一**：`query_experiment_result` 工具改走 `orchestrator.get_measurements()`，不再直查数据库表；`list_devices` 删除无用 refresh 参数
 
 ## [1.0.0] - 2026-08-14
 

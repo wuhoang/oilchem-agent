@@ -193,6 +193,34 @@ async def abort_experiment(experiment_id: str) -> dict:
     return {"success": True, "message": f"实验 {experiment_id} 已中止"}
 
 
+@router.get("/experiments/events")
+async def experiment_events() -> StreamingResponse:
+    """实验事件 SSE 流。推送 experiment_status/step_status/measurement 事件。
+
+    注意：必须注册在 /experiments/{experiment_id} 之前，否则 "events"
+    会被参数路由抢先匹配成 experiment_id，导致 SSE 永远 404。
+    """
+    from app.services.orchestrator import get_orchestrator
+
+    orch = get_orchestrator()
+
+    async def event_generator():
+        q = orch.subscribe()
+        try:
+            # 发送初始连接确认
+            yield f"data: {json.dumps({'type': 'connected'}, ensure_ascii=False)}\n\n"
+            while True:
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=30.0)
+                    yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+                except asyncio.TimeoutError:
+                    yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
+        finally:
+            orch.unsubscribe(q)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @router.get("/experiments/{experiment_id}")
 async def get_experiment(experiment_id: str, db: AsyncSession = Depends(get_db)) -> dict:
     """获取实验详情（含步骤 + 追溯链）。"""
@@ -310,30 +338,6 @@ async def get_report(experiment_id: str) -> dict:
         return {"success": True, "word_path": result["word_path"], "excel_path": result["excel_path"]}
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-
-
-@router.get("/experiments/events")
-async def experiment_events() -> StreamingResponse:
-    """实验事件 SSE 流。推送 experiment_status/step_status/measurement 事件。"""
-    from app.services.orchestrator import get_orchestrator
-
-    orch = get_orchestrator()
-
-    async def event_generator():
-        q = orch.subscribe()
-        try:
-            # 发送初始连接确认
-            yield f"data: {json.dumps({'type': 'connected'}, ensure_ascii=False)}\n\n"
-            while True:
-                try:
-                    event = await asyncio.wait_for(q.get(), timeout=30.0)
-                    yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
-                except asyncio.TimeoutError:
-                    yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
-        finally:
-            orch.unsubscribe(q)
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.get("/dashboard")
