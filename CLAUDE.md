@@ -36,7 +36,7 @@ frontend/ (React SPA, :5173)  ──HTTP/SSE──▶ backend/ (FastAPI, :8000)
    /api/v1/chat  +  /api/v1/chat/stream        │
    /api/v1/db/*  +  /api/v1/llm/*              │
    /api/v1/web/*  +  /api/v1/files/*           │
-   /api/v1/hardware/*                           │
+   /api/v1/hardware/*  +  /api/v1/experiments/*│
 ```
 
 ## 常用命令
@@ -62,11 +62,32 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 
 | 状态 | 模块 |
 |------|------|
-| ✅ 可用 | FastAPI 骨架、LLM 客户端 (OpenAI 兼容/DeepSeek + Ollama 预留)、Playwright 网页工具 (browse/smart_fill)、对话端点 (含 SSE)、Guardrails 已接入 chat 端点、DB 端点已接入 ORM (SQLite) |
-| 🔧 已实现未验证 | 25个工具中除已验证之外的其余工具、文件监听 (watchdog)、实验中心 (编排器 orchestrator / 报告生成 / SSE 事件) |
+| ✅ 可用 | FastAPI 骨架、LLM 客户端 (OpenAI 兼容/DeepSeek + Ollama 预留)、Playwright 网页工具 (browse/smart_fill)、对话端点 (含 SSE)、Guardrails 已接入 chat 端点、DB 端点已接入 ORM (SQLite)、**实验域 M1-M7 端到端闭环** (编排器 orchestrator / 报告生成 / SSE 事件 / 追溯审计) |
+| 🔧 已实现未验证 | 25个工具中除已验证之外的其余工具、文件监听 (watchdog) |
 | 🔧 备用链路 | 旧 Planner→Executor（手写 JSON 计划），代码保留但主链路已改用 function calling，不再使用 |
 | ⚠️ Mock | 硬件设备 (油化仿真设备源统一到 DriverRegistry，驱动仍是 MockDriver 模拟器，指令为模拟下发)、DB users 表在 ORM 但未接认证 |
 | 🔌 预留 | 用户认证 (AUTH_ENABLED=false)、MCP 客户端 (写了没接)、真实硬件通信 (RS232/USB/GPIB) |
+
+## 重要文件
+
+| 模块 | 路径 |
+|------|------|
+| 编排引擎（实验状态机） | `backend/app/services/orchestrator.py` |
+| 设备驱动层 | `backend/app/hardware/drivers/{base,mock,registry}.py`（抽象接口 / 剧本引擎 / 单一设备源） |
+| 报告生成 | `backend/app/services/report_generator.py`（Word + Excel，存 `storage/reports/{id}/`） |
+| 实验域工具 | `backend/app/tools/builtin/experiment_tools.py`（6 个工具） |
+| 实验域 API | `backend/app/api/v1/endpoints/experiments.py`（REST + SSE） |
+| Agent 主循环 | `backend/app/agent/manager.py`（function calling，`max_iterations=8`） |
+| 前端实验中心 | `frontend/src/components/ExperimentCenter.tsx`（三视图 + EventSource SSE） |
+| 设备仿真数据 | `backend/app/hardware/hardware_simulation_data.json`（6 台油化仿真设备剧本曲线） |
+
+## 架构决策
+
+- **工具决策用非流式** `chat()`，最终文本回复才用流式 `stream_chat()`——规避流式 `tool_calls` 增量累积的复杂度
+- **tool 往返不写 Memory**：工具结果只在当次循环内回传，不持久化，避免污染后续多轮对话
+- **图片 base64 不进 LLM 上下文**：工具返回图片时经 `_sanitize_tool_output` 转文字描述，图片本身只走 SSE `chart` 事件给前端
+- **`init_db()` 三阶段**：Alembic → create_all(幂等补建) → seed(幂等填充)，不得回退到早 return
+- **Playwright 走后台线程** `_SyncBrowserManager`，勿改用 async API（Windows greenlet 跨线程错误）
 
 ## 项目规则
 
