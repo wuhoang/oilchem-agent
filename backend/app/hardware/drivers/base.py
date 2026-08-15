@@ -73,6 +73,10 @@ class DeviceDriver(ABC):
     @abstractmethod
     async def cancel(self) -> None: ...
 
+    @abstractmethod
+    async def reset(self) -> None:
+        """复位设备到初始状态（指标回初始值、曲线索引清零、状态回 IDLE）。"""
+
 
 __all__ = [
     "DeviceDriver",

@@ -5,6 +5,24 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-15
+
+### Added
+
+- **实验报告自动生成**：`report_generator.py` 生成 Word 报告（信息表/方案步骤/步骤执行/测量数据/审计记录/结论）+ Excel 数据表（多指标分 sheet）；实验完成时自动生成，文件存 `storage/reports/{id}/`；`GET /experiments/{id}/report` 端点 + `generate_experiment_report` Agent 工具（单轮完成）
+- **追溯视图**：`GET /experiments/{id}` 返回 audits 时间线 + protocol 名称 + sample 信息；前端实验中心展示"执行记录"时间线
+- **真实油化设备**：设备从 `hardware_simulation_data.json` 加载（HTHP-01/02 失水仪、Rheo-01/02 六速流变仪、Thick-01/02 稠化仪），替换 5 台通用假设备；HTHP-01 漏失量 7 点插值 30 点
+- **SSE 实验事件**：orchestrator 事件广播（experiment_status/step_status/measurement）+ `GET /experiments/events` SSE 端点；前端 EventSource 实时更新替换 3 秒轮询
+- **实验员选择**：`GET /experimenters` 端点，前端一键开始弹操作员下拉 + 样品号输入
+
+### Fixed
+
+- **设备不复位**：MockDriver 加 `reset()`（指标回初始值/曲线索引清零），orchestrator start 时复位实验设备；修复第二次实验测量值直线问题
+- **BUSY 状态**：设备状态四态透传（idle→online/busy/error/offline），硬件面板显示"忙碌"
+- **send_command**：从 DriverRegistry 取设备下发指令，不再走写死列表（HTHP-01 不再 404）
+- **created_at 类型**：Experiment.created_at String→DateTime（Alembic 004 batch 迁移）
+- **超轮数不污染记忆**：达到最大工具调用轮数的系统提示不写入 Memory
+
 ## [1.0.0] - 2026-08-14
 
 ### Added

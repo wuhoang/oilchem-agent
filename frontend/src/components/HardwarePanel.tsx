@@ -15,6 +15,8 @@ const TYPE_ICONS: Record<string, string> = {
   ph_meter: "📊",
   pump: "💧",
   hthp: "🌡️",
+  rheometer: "🌀",
+  thickener: "⏳",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -24,16 +26,20 @@ const TYPE_LABELS: Record<string, string> = {
   ph_meter: "pH计",
   pump: "蠕动泵",
   hthp: "失水仪",
+  rheometer: "流变仪",
+  thickener: "稠化仪",
 };
 
 const STATUS_COLORS: Record<string, string> = {
   online: "bg-emerald-500",
+  busy: "bg-amber-500",
   offline: "bg-slate-400",
   error: "bg-red-500",
 };
 
 const STATUS_LABELS: Record<string, string> = {
   online: "在线",
+  busy: "忙碌",
   offline: "离线",
   error: "异常",
 };

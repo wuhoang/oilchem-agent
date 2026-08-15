@@ -61,3 +61,6 @@ backend/test_thread_pw.py
 
 # ----- Claude Code local settings -----
 .claude/settings.local.json
+
+# ----- 运行时产物（报告等）-----
+storage/

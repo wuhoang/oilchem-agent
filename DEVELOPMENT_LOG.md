@@ -6,6 +6,56 @@
 
 ---
 
+## [1.1.0] — 2026-08-15
+
+### Added
+
+- **实验报告自动生成（核心演示点）**
+  - 新增 `backend/app/services/report_generator.py`：`generate_report(experiment_id)` 生成 Word 报告（标题 + 实验信息表 + 方案步骤 + 步骤执行表 + 测量数据表 + 审计记录 + 结论段）+ Excel 数据表（多指标分 sheet），文件存 `backend/storage/reports/{experiment_id}/`，幂等复用
+  - `Experiment` 加 `report_path` 字段 + Alembic 004 迁移
+  - `GET /experiments/{id}/report` 端点返回文件清单
+  - orchestrator 实验完成时自动调用 generate_report（失败只记日志）
+  - 新增 Agent 工具 `generate_experiment_report`（单工具完成，绕开轮数限制）
+  - 前端实验中心"已完成"状态显示"生成/下载报告"按钮
+
+- **追溯视图（运行记录可见化）**
+  - `GET /experiments/{id}` 响应加 `audits`（时间正序）+ `protocol_name` + `report_path`
+  - 前端详情区加"执行记录"时间线（创建→开始→每步→完成）
+
+- **真实油化设备**
+  - 设备清单从 `hardware_simulation_data.json` 加载：HTHP-01/02（高温高压失水仪）、Rheo-01/02（六速旋转粘度计，600/300/6/3 转读数）、Thick-01/02（稠化仪）
+  - 删除 5 台通用假设备；HTHP-01 保留漏失量剧本曲线（7 点插值 30 点）
+
+- **SSE 实验事件（替换轮询）**
+  - orchestrator 加 subscribe/unsubscribe/_publish 事件广播；状态变更/步骤变化/measure 落库时推送
+  - `GET /api/v1/experiments/events` SSE 端点
+  - 前端 EventSource 订阅，替换 3 秒轮询
+
+- **实验员选择**：`GET /experimenters` 端点；前端一键开始弹操作员下拉 + 样品号输入
+
+### Fixed
+
+- **设备不复位（Bug）**：MockDriver 加 `reset()`（`_initial_metrics` 恢复 + `_curve_index.clear()`），`DeviceDriver` 基类加 reset 抽象；orchestrator start 时对实验设备复位——修复第二次实验漏失量直线/温度 180→180 问题
+- **BUSY 状态映射**：registry.get_device_info 状态四态透传（idle→online/busy/error/offline）
+- **send_command 走统一源**：从 DriverRegistry 取设备，HTHP-01 不再 404
+- **created_at 类型**：String→DateTime，batch_alter_table 迁移，种子数据改 datetime 对象
+- **超轮数不写 Memory**：chat_with_tools / chat_stream_with_tools 的"已达最大轮数"提示加 skip_memory 标志
+
+### Changed
+
+- 版本号 1.0.0 → 1.1.0
+- 工具总数 24 → 25（新增 generate_experiment_report）
+- pyproject.toml 补全依赖：openpyxl/python-docx/python-pptx/matplotlib/playwright/watchdog/requests
+
+### 验证
+
+- 连续两次实验：漏失量 30 点（0.5→11.5）、温度 25→180，第二次正常 ✅
+- 实验报告：Word + Excel 自动生成，文件真实存在 ✅
+- 设备源：6 台真实油化设备（HTHP/Rheo/Thick 各 2 台）✅
+- pytest 2 通过、前端 build 通过 ✅
+
+---
+
 ## [1.0.0] — 2026-08-14
 
 ### Added

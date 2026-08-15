@@ -183,7 +183,7 @@ export function Sidebar({
 
       {/* 底部 */}
       <div className="border-t border-slate-200 p-4 text-center">
-        <p className="text-xs text-slate-400">OilChem Agent v1.0.0</p>
+        <p className="text-xs text-slate-400">OilChem Agent v1.1.0</p>
       </div>
     </aside>
   );

@@ -55,12 +55,15 @@ class MockDriver(DeviceDriver):
         self.type = type_
         self._tick_s = tick_s
         self._metrics: dict[str, dict[str, Any]] = {}
+        self._initial_metrics: dict[str, float] = {}
         for m in metrics or []:
             name = m["name"]
+            initial = float(m.get("initial", 0))
             self._metrics[name] = {
-                "value": float(m.get("initial", 0)),
+                "value": initial,
                 "unit": m.get("unit"),
             }
+            self._initial_metrics[name] = initial
         # 剧本曲线：metric_name -> 值序列（measure 时按序产出）
         self._curve = curve or {}
         self._curve_index: dict[str, int] = {}
@@ -85,6 +88,18 @@ class MockDriver(DeviceDriver):
     async def cancel(self) -> None:
         self._cancel_requested = True
 
+    async def reset(self) -> None:
+        """复位设备：指标回初始值、曲线索引清零、状态回 IDLE。"""
+        for name, initial in self._initial_metrics.items():
+            if name in self._metrics:
+                self._metrics[name]["value"] = initial
+        self._curve_index.clear()
+        self._cancel_requested = False
+        self._status = DeviceStatus.IDLE
+        logger.bind(component="mock_driver").debug(
+            "设备复位: device={}", self.device_id
+        )
+
     # -- 遥测 ---------------------------------------------------------------
 
     async def read_telemetry(self) -> list[TelemetryPoint]:
@@ -106,6 +121,19 @@ class MockDriver(DeviceDriver):
             if idx < len(self._curve[metric_name]):
                 self._metrics[metric_name]["value"] = self._curve[metric_name][idx]
                 self._curve_index[metric_name] = idx + 1
+
+    async def send_command(self, command: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """通用指令下发（模拟响应 + 日志）。"""
+        logger.bind(component="mock_driver").info(
+            "下发指令: device={}, command={}, params={}",
+            self.device_id, command, params or {},
+        )
+        return {
+            "device_id": self.device_id,
+            "command": command,
+            "status": "queued",
+            "message": f"指令 {command} 已下发到 {self.device_id}（模拟）",
+        }
 
     async def execute_step(self, step: dict[str, Any]) -> StepResult:
         """执行一步。根据 action 分派到对应剧本。"""

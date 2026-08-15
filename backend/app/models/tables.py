@@ -154,13 +154,17 @@ class Experiment(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     operator: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="待开始")
-    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    created_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, nullable=True
+    )
     # 追溯关联字段（可空，向后兼容已有数据）
     operator_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     protocol_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     sample_code: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     # 实验结果（JSON：摘要 + 图表 base64）
     result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 报告目录相对路径（backend/storage/reports/{id}）
+    report_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
     )
@@ -358,11 +362,11 @@ class Measurement(Base):
 # ---------------------------------------------------------------------------
 
 SEED_EXPERIMENTS: list[dict] = [
-    {"id": "EXP-001", "name": "柴油加氢脱硫评价", "operator": "张伟", "status": "进行中", "created_at": "2026-08-08 09:30"},
-    {"id": "EXP-002", "name": "催化裂化催化剂筛选", "operator": "李娜", "status": "已完成", "created_at": "2026-08-07 14:12"},
-    {"id": "EXP-003", "name": "重整原料油预处理", "operator": "王强", "status": "待开始", "created_at": "2026-08-09 08:00"},
-    {"id": "EXP-004", "name": "pH 计校准实验", "operator": "赵敏", "status": "已完成", "created_at": "2026-08-06 16:45"},
-    {"id": "EXP-005", "name": "气相色谱方法开发", "operator": "陈杰", "status": "进行中", "created_at": "2026-08-08 11:20"},
+    {"id": "EXP-001", "name": "柴油加氢脱硫评价", "operator": "张伟", "status": "进行中", "created_at": datetime.datetime(2026, 8, 8, 9, 30)},
+    {"id": "EXP-002", "name": "催化裂化催化剂筛选", "operator": "李娜", "status": "已完成", "created_at": datetime.datetime(2026, 8, 7, 14, 12)},
+    {"id": "EXP-003", "name": "重整原料油预处理", "operator": "王强", "status": "待开始", "created_at": datetime.datetime(2026, 8, 9, 8, 0)},
+    {"id": "EXP-004", "name": "pH 计校准实验", "operator": "赵敏", "status": "已完成", "created_at": datetime.datetime(2026, 8, 6, 16, 45)},
+    {"id": "EXP-005", "name": "气相色谱方法开发", "operator": "陈杰", "status": "进行中", "created_at": datetime.datetime(2026, 8, 8, 11, 20)},
 ]
 
 SEED_SAMPLES: list[dict] = [

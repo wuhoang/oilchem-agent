@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import asyncio
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -22,6 +26,8 @@ from app.models.tables import (
     Measurement,
     Protocol,
     ProtocolStep,
+    Experimenter,
+    ExperimentAudit,
 )
 
 router = APIRouter(tags=["experiments"])
@@ -201,6 +207,15 @@ async def get_experiment(experiment_id: str, db: AsyncSession = Depends(get_db))
     )
     steps = result.scalars().all()
 
+    protocol = await db.get(Protocol, exp.protocol_id) if exp.protocol_id else None
+
+    audits_result = await db.execute(
+        select(ExperimentAudit)
+        .where(ExperimentAudit.experiment_id == experiment_id)
+        .order_by(ExperimentAudit.created_at.asc())
+    )
+    audits = audits_result.scalars().all()
+
     return {
         "experiment": {
             "id": exp.id,
@@ -209,9 +224,11 @@ async def get_experiment(experiment_id: str, db: AsyncSession = Depends(get_db))
             "operator": exp.operator,
             "operator_id": exp.operator_id,
             "protocol_id": exp.protocol_id,
+            "protocol_name": protocol.name if protocol else None,
             "sample_code": exp.sample_code,
-            "created_at": exp.created_at,
+            "created_at": exp.created_at.isoformat() if exp.created_at else None,
             "result": exp.result,
+            "report_path": exp.report_path,
         },
         "steps": [
             {
@@ -222,6 +239,14 @@ async def get_experiment(experiment_id: str, db: AsyncSession = Depends(get_db))
                 "error": s.error_message,
             }
             for s in steps
+        ],
+        "audits": [
+            {
+                "event_type": a.event_type,
+                "detail": a.detail,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in audits
         ],
     }
 
@@ -260,6 +285,55 @@ async def get_measurements(
             for m in measurements
         ]
     }
+
+
+@router.get("/experimenters")
+async def list_experimenters(db: AsyncSession = Depends(get_db)) -> dict:
+    """列出所有实验员。"""
+    result = await db.execute(select(Experimenter).order_by(Experimenter.id.asc()))
+    experimenters = result.scalars().all()
+    return {
+        "experimenters": [
+            {"id": e.id, "name": e.name, "role": e.role, "department": e.department}
+            for e in experimenters
+        ]
+    }
+
+
+@router.get("/experiments/{experiment_id}/report")
+async def get_report(experiment_id: str) -> dict:
+    """获取实验报告文件清单（Word + Excel）。"""
+    from app.services.report_generator import generate_report
+
+    try:
+        result = await generate_report(experiment_id)
+        return {"success": True, "word_path": result["word_path"], "excel_path": result["excel_path"]}
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.get("/experiments/events")
+async def experiment_events() -> StreamingResponse:
+    """实验事件 SSE 流。推送 experiment_status/step_status/measurement 事件。"""
+    from app.services.orchestrator import get_orchestrator
+
+    orch = get_orchestrator()
+
+    async def event_generator():
+        q = orch.subscribe()
+        try:
+            # 发送初始连接确认
+            yield f"data: {json.dumps({'type': 'connected'}, ensure_ascii=False)}\n\n"
+            while True:
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=30.0)
+                    yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+                except asyncio.TimeoutError:
+                    yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
+        finally:
+            orch.unsubscribe(q)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.get("/dashboard")

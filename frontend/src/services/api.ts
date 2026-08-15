@@ -360,8 +360,10 @@ export interface Experiment {
   status: string;
   operator?: string;
   protocol_id?: string;
+  protocol_name?: string;
   sample_code?: string;
   result?: string;
+  report_path?: string;
 }
 
 export interface ExperimentStep {
@@ -372,9 +374,23 @@ export interface ExperimentStep {
   error?: string | null;
 }
 
+export interface AuditEvent {
+  event_type: string;
+  detail: string;
+  created_at?: string | null;
+}
+
 export interface ExperimentDetail {
   experiment: Experiment;
   steps: ExperimentStep[];
+  audits?: AuditEvent[];
+}
+
+export interface Experimenter {
+  id: string;
+  name: string;
+  role: string;
+  department?: string;
 }
 
 export interface Measurement {
@@ -438,11 +454,19 @@ export interface HardwareDevice {
   id: string;
   name: string;
   type: string;
-  status: "online" | "offline" | "error";
+  status: "online" | "busy" | "offline" | "error";
   metrics: HardwareMetric[];
   error?: string;
 }
 
 export async function fetchHardwareDevices(): Promise<{ devices: HardwareDevice[] }> {
   return request<{ devices: HardwareDevice[] }>("/hardware/devices");
+}
+
+export async function fetchExperimenters(): Promise<{ experimenters: Experimenter[] }> {
+  return request<{ experimenters: Experimenter[] }>("/experimenters");
+}
+
+export async function fetchExperimentReport(experimentId: string): Promise<{ success: boolean; word_path: string; excel_path: string }> {
+  return request(`/experiments/${encodeURIComponent(experimentId)}/report`);
 }

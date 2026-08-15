@@ -17,10 +17,14 @@ import {
   fetchExperimentDetail,
   fetchExperimentMeasurements,
   fetchDashboard,
+  fetchExperimenters,
+  fetchExperimentReport,
   type Protocol,
   type Experiment,
   type ExperimentStep,
   type Measurement,
+  type Experimenter,
+  type AuditEvent,
 } from "../services/api";
 import { notifyError } from "./ErrorToast";
 
@@ -36,9 +40,12 @@ const STATUS_COLOR: Record<string, string> = {
 export function ExperimentCenter() {
   const [protocols, setProtocols] = useState<Protocol[]>([]);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [experimenters, setExperimenters] = useState<Experimenter[]>([]);
   const [selectedProtocol, setSelectedProtocol] = useState<string>("");
   const [selectedExperiment, setSelectedExperiment] = useState<string>("");
-  const [detail, setDetail] = useState<{ steps: ExperimentStep[] } | null>(null);
+  const [selectedOperator, setSelectedOperator] = useState<string>("");
+  const [sampleCode, setSampleCode] = useState<string>("");
+  const [detail, setDetail] = useState<{ experiment: Experiment; steps: ExperimentStep[]; audits?: AuditEvent[] } | null>(null);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [stats, setStats] = useState<{ total_experiments: number; status_count: Record<string, number> }>({
     total_experiments: 0,
@@ -47,14 +54,18 @@ export function ExperimentCenter() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [p, e, d] = await Promise.all([fetchProtocols(), fetchExperiments(), fetchDashboard()]);
+      const [p, e, d, ex] = await Promise.all([fetchProtocols(), fetchExperiments(), fetchDashboard(), fetchExperimenters()]);
       setProtocols(p.protocols);
       setExperiments(e.experiments);
       setStats(d);
+      setExperimenters(ex.experimenters);
+      if (!selectedOperator && ex.experimenters.length > 0) {
+        setSelectedOperator(ex.experimenters[0].id);
+      }
     } catch (err) {
       notifyError(String(err));
     }
-  }, []);
+  }, [selectedOperator]);
 
   useEffect(() => {
     loadAll();
@@ -96,8 +107,21 @@ export function ExperimentCenter() {
   useEffect(() => {
     if (selectedExperiment) {
       refreshDetail();
-      const timer = setInterval(refreshDetail, 3000);
-      return () => clearInterval(timer);
+      // SSE 订阅实验事件，实时更新（替换轮询）
+      const es = new EventSource("/api/v1/experiments/events");
+      es.onmessage = (e) => {
+        try {
+          const ev = JSON.parse(e.data);
+          if (ev.type === "experiment_status" || ev.type === "step_status" || ev.type === "measurement") {
+            if (ev.experiment_id === selectedExperiment) {
+              refreshDetail();
+            }
+          }
+        } catch {
+          // 忽略非 JSON
+        }
+      };
+      return () => es.close();
     }
   }, [selectedExperiment, refreshDetail]);
 
@@ -106,17 +130,30 @@ export function ExperimentCenter() {
       notifyError("请先选择一个实验方案");
       return;
     }
+    if (!selectedOperator) {
+      notifyError("请选择操作员");
+      return;
+    }
     try {
       const exp = await createExperiment({
         name: `实验 ${selectedProtocol}`,
         protocol_id: selectedProtocol,
-        operator_id: "OP-001",
-        sample_code: "S-2026-0801",
+        operator_id: selectedOperator,
+        sample_code: sampleCode || undefined,
       });
       await startExperiment(exp.id);
-      notifyError(`实验 ${exp.id} 已启动`);
       setSelectedExperiment(exp.id);
       await loadAll();
+    } catch (err) {
+      notifyError(String(err));
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    if (!selectedExperiment) return;
+    try {
+      const r = await fetchExperimentReport(selectedExperiment);
+      notifyError(`报告已生成：Word=${r.word_path}`);
     } catch (err) {
       notifyError(String(err));
     }
@@ -152,9 +189,32 @@ export function ExperimentCenter() {
             <div className="text-xs text-slate-500 line-clamp-2">{p.description}</div>
           </button>
         ))}
+        <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-2">
+          <label className="text-xs text-slate-500">
+            操作员
+            <select
+              value={selectedOperator}
+              onChange={(e) => setSelectedOperator(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-sm"
+            >
+              {experimenters.map((ex) => (
+                <option key={ex.id} value={ex.id}>{ex.name}（{ex.role}）</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-slate-500">
+            样品号（可空）
+            <input
+              value={sampleCode}
+              onChange={(e) => setSampleCode(e.target.value)}
+              placeholder="如 S-2026-0801"
+              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-sm"
+            />
+          </label>
+        </div>
         <button
           onClick={handleCreateAndStart}
-          disabled={!selectedProtocol}
+          disabled={!selectedProtocol || !selectedOperator}
           className="mt-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white transition hover:bg-blue-700 disabled:opacity-40"
         >
           一键开始实验
@@ -203,12 +263,22 @@ export function ExperimentCenter() {
           <>
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-slate-800">实验 {selectedExperiment}</h2>
-              <button
-                onClick={handleAbort}
-                className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
-              >
-                中止实验
-              </button>
+              <div className="flex items-center gap-2">
+                {detail?.experiment?.status === "已完成" && (
+                  <button
+                    onClick={handleDownloadReport}
+                    className="rounded-md border border-emerald-200 px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50"
+                  >
+                    生成/下载报告
+                  </button>
+                )}
+                <button
+                  onClick={handleAbort}
+                  className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+                >
+                  中止实验
+                </button>
+              </div>
             </div>
 
             {/* 步骤进度 */}
@@ -229,6 +299,21 @@ export function ExperimentCenter() {
                 <div className="text-sm text-slate-400">暂无步骤数据</div>
               )}
             </div>
+
+            {/* 执行记录时间线 */}
+            {detail?.audits && detail.audits.length > 0 && (
+              <div className="space-y-1 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                <div className="mb-1 text-sm font-medium text-slate-600">执行记录</div>
+                {detail.audits.map((a, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs">
+                    <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
+                    <span className="text-slate-400">{a.created_at?.replace("T", " ").slice(0, 19)}</span>
+                    <span className="font-medium text-slate-600">{a.event_type}</span>
+                    <span className="text-slate-500">{a.detail}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* 实验结果图表 */}
             {resultChart && (

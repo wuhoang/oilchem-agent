@@ -80,7 +80,8 @@ class DriverRegistry:
                         "id": device_id,
                         "name": getattr(driver, "name", device_id),
                         "type": getattr(driver, "type", "device"),
-                        "status": "online" if status.value != "offline" else "offline",
+                        # 四态透传：idle→online, busy→busy, error→error, offline→offline
+                        "status": "online" if status.value == "idle" else status.value,
                         "metrics": [
                             {
                                 "name": tp.metric_name,

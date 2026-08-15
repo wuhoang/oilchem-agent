@@ -228,6 +228,7 @@ class AgentManager:
         final_response = ""
         tool_called = False
         call_count = 0
+        skip_memory = False
         try:
             for _ in range(self._max_tool_iterations):
                 # 工具决策用非流式，规避流式 tool_calls 增量解析的复杂度
@@ -294,6 +295,7 @@ class AgentManager:
             else:
                 # 达到最大轮数仍未收敛
                 final_response = "已达到最大工具调用轮数，任务未能完成，请重试或换一种问法。"
+                skip_memory = True
                 logger.bind(component="agent").warning(
                     "Tool loop hit max iterations: session={}", session_id
                 )
@@ -311,8 +313,8 @@ class AgentManager:
                 execution_time_ms=elapsed,
             )
 
-        # 记录 assistant 回复到记忆
-        if final_response:
+        # 记录 assistant 回复到记忆（系统提示类跳过，避免污染后续对话）
+        if final_response and not skip_memory:
             self._memory.add_message(session_id, MessageRole.ASSISTANT, final_response)
 
         elapsed = int((time.perf_counter() - start) * 1000)
@@ -572,6 +574,7 @@ class AgentManager:
         tool_called = False
         call_count = 0
         final_response = ""
+        skip_memory = False
 
         try:
             for _ in range(self._max_tool_iterations):
@@ -678,6 +681,7 @@ class AgentManager:
                             )
             else:
                 final_response = "已达到最大工具调用轮数，任务未能完成，请重试或换一种问法。"
+                skip_memory = True
                 logger.bind(component="agent").warning(
                     "Tool loop hit max iterations: session={}", session_id
                 )
@@ -711,7 +715,7 @@ class AgentManager:
             )
             return
 
-        if final_response:
+        if final_response and not skip_memory:
             self._memory.add_message(session_id, MessageRole.ASSISTANT, final_response)
 
         yield AgentStreamEvent(

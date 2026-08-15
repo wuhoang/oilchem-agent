@@ -142,21 +142,24 @@ async def get_device(device_id: str) -> dict:
 
 @router.post("/hardware/devices/{device_id}/command")
 async def send_command(device_id: str, req: CommandRequest) -> GenericResponse:
-    """向设备下发指令（当前为接口预留，会回写一条日志）。"""
+    """向设备下发指令（从统一设备源 DriverRegistry 取设备）。"""
+    try:
+        from app.services.orchestrator import get_orchestrator
+
+        driver = get_orchestrator()._drivers.get(device_id)
+        if driver is not None:
+            result = await driver.send_command(req.command, req.params)
+            return GenericResponse(success=True, data=result, message=result.get("message", "指令已下发"))
+    except Exception as exc:
+        logger = __import__("loguru").logger
+        logger.bind(component="hardware").warning("指令下发异常: {}", exc)
+
+    # 降级：旧写死设备
     for d in _DEVICES:
         if d["id"] == device_id:
-            if d["status"] != "online":
-                raise HTTPException(status_code=400, detail="Device is offline")
-            # 模拟：指令入队，然后异步处理
-            await asyncio.sleep(0.1)
             return GenericResponse(
                 success=True,
-                data={
-                    "device_id": device_id,
-                    "command": req.command,
-                    "status": "queued",
-                    "dispatched_at": int(time.time() * 1000),
-                },
+                data={"device_id": device_id, "command": req.command, "status": "queued"},
                 message=f"指令 {req.command} 已下发到设备 {device_id}",
             )
     raise HTTPException(status_code=404, detail=f"Device '{device_id}' not found")

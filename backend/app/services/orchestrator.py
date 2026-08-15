@@ -45,7 +45,25 @@ class Orchestrator:
     def __init__(self, driver_registry: DriverRegistry) -> None:
         self._drivers = driver_registry
         self._tasks: dict[str, asyncio.Task] = {}
+        self._subscribers: set[asyncio.Queue] = set()
         logger.bind(component="orchestrator").info("Orchestrator initialized")
+
+    def subscribe(self) -> asyncio.Queue:
+        """订阅实验事件，返回一个 asyncio.Queue。"""
+        q: asyncio.Queue = asyncio.Queue()
+        self._subscribers.add(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue) -> None:
+        self._subscribers.discard(q)
+
+    def _publish(self, event: dict[str, Any]) -> None:
+        """向所有订阅者广播事件（非阻塞）。"""
+        for q in list(self._subscribers):
+            try:
+                q.put_nowait(event)
+            except asyncio.QueueFull:
+                pass
 
     # -- 实验生命周期 -------------------------------------------------------
 
@@ -75,7 +93,7 @@ class Orchestrator:
                 protocol_id=protocol_id,
                 sample_code=sample_code,
                 status=self.STATUS_DRAFT,
-                created_at=datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                created_at=datetime.datetime.utcnow(),
             )
             session.add(exp)
             await session.commit()
@@ -87,11 +105,13 @@ class Orchestrator:
         return {"id": experiment_id, "name": name, "status": self.STATUS_DRAFT}
 
     async def start(self, experiment_id: str) -> None:
-        """启动实验：展开步骤 + 启动后台主循环。"""
+        """启动实验：复位设备 → 展开步骤 → 启动后台主循环。"""
         if experiment_id in self._tasks:
             raise ValueError(f"实验 {experiment_id} 已在运行")
 
         await self._expand_steps(experiment_id)
+        # 复位实验涉及的所有设备，避免上次实验残留状态（指标/曲线索引）
+        await self._reset_devices(experiment_id)
         await self._set_status(experiment_id, self.STATUS_RUNNING)
 
         task = asyncio.create_task(self._run_loop(experiment_id))
@@ -164,6 +184,28 @@ class Orchestrator:
 
     # -- 内部 ---------------------------------------------------------------
 
+    async def _reset_devices(self, experiment_id: str) -> None:
+        """复位实验涉及的设备（幂等）。"""
+        from app.database.session import get_session_factory
+        from app.models.tables import ExperimentStep
+
+        factory = get_session_factory()
+        async with factory() as session:
+            result = await session.execute(
+                select(ExperimentStep)
+                .where(ExperimentStep.experiment_id == experiment_id)
+            )
+            steps = result.scalars().all()
+
+        device_ids = {s.device_id for s in steps}
+        for device_id in device_ids:
+            driver = self._drivers.get(device_id)
+            if driver is not None and hasattr(driver, "reset"):
+                await driver.reset()
+                logger.bind(component="orchestrator").info(
+                    "设备复位: device={}", device_id
+                )
+
     async def _expand_steps(self, experiment_id: str) -> None:
         """读 protocol_steps 实例化为 experiment_steps。"""
         from app.database.session import get_session_factory
@@ -224,6 +266,7 @@ class Orchestrator:
                         # 所有步骤完成
                         await self._set_status(experiment_id, self.STATUS_COMPLETED)
                         await self._generate_result(experiment_id)
+                        await self._generate_report(experiment_id)
                         logger.bind(component="orchestrator").info(
                             "实验完成: id={}", experiment_id
                         )
@@ -251,6 +294,14 @@ class Orchestrator:
                     "step_succeed" if result_step.success else "step_fail",
                     f"step={step.step_order} action={step.action}",
                 )
+                self._publish({
+                    "type": "step_status",
+                    "experiment_id": experiment_id,
+                    "step_order": step.step_order,
+                    "status": step.status,
+                    "action": step.action,
+                    "error": step.error_message,
+                })
 
                 if not result_step.success:
                     await self._set_status(experiment_id, self.STATUS_FAILED)
@@ -323,6 +374,13 @@ class Orchestrator:
                             )
                         )
                         await session.commit()
+                    self._publish({
+                        "type": "measurement",
+                        "experiment_id": experiment_id,
+                        "metric_name": metric_name,
+                        "value": value,
+                        "unit": unit,
+                    })
                     await asyncio.sleep(0.3)
                 return StepResult(success=True, message=f"已采 {count} 个数据点")
 
@@ -402,6 +460,7 @@ class Orchestrator:
                 exp.status = status
                 await session.commit()
         await self._audit(experiment_id, "status", status)
+        self._publish({"type": "experiment_status", "experiment_id": experiment_id, "status": status})
 
     async def _generate_result(self, experiment_id: str) -> None:
         """实验完成后自动生成结果：画漏失量曲线 + 摘要，存入 experiment.result。"""
@@ -478,6 +537,30 @@ class Orchestrator:
                 "结果生成失败: {}", exc
             )
 
+    async def _generate_report(self, experiment_id: str) -> None:
+        """实验完成后自动生成报告（Word+Excel），失败只记日志不影响完成。"""
+        try:
+            from app.services.report_generator import generate_report
+
+            result = await generate_report(experiment_id)
+
+            from app.database.session import get_session_factory
+            from app.models.tables import Experiment
+
+            factory = get_session_factory()
+            async with factory() as session:
+                exp = await session.get(Experiment, experiment_id)
+                if exp:
+                    exp.report_path = result["word_path"]
+                    await session.commit()
+            logger.bind(component="orchestrator").info(
+                "报告自动生成: id={}", experiment_id
+            )
+        except Exception as exc:
+            logger.bind(component="orchestrator").error(
+                "报告自动生成失败: id={}, error={}", experiment_id, exc
+            )
+
     async def _audit(self, experiment_id: str, event_type: str, detail: str = "") -> None:
         """写入一条实验审计事件。"""
         from app.database.session import get_session_factory
@@ -543,100 +626,106 @@ class Orchestrator:
 _orchestrator: Orchestrator | None = None
 
 
-def get_orchestrator() -> Orchestrator:
-    """获取全局 Orchestrator 实例（含默认 Mock 设备驱动注册）。"""
-    global _orchestrator
-    if _orchestrator is None:
-        from app.hardware.drivers import DriverRegistry, MockDriver
+def _interp_curve(keys: list[float], vals: list[float], n: int) -> list[float]:
+    """把关键点线性插值成 n 个点的曲线。"""
+    curve: list[float] = []
+    for i in range(n):
+        t = (i + 1) * (keys[-1] / n)
+        for k in range(len(keys) - 1):
+            if keys[k] <= t <= keys[k + 1]:
+                x0, x1 = keys[k], keys[k + 1]
+                y0, y1 = vals[k], vals[k + 1]
+                curve.append(round(y0 + (y1 - y0) * (t - x0) / (x1 - x0), 2))
+                break
+    return curve
 
-        registry = DriverRegistry()
-        # 演示主场景：HTHP 高温高压失水仪
-        # 漏失量剧本曲线：7 个关键点线性插值成 30 个点（30 分钟），曲线更平滑
-        _leakage_key = [0, 5, 10, 15, 20, 25, 30]
-        _leakage_val = [0.0, 2.5, 4.8, 6.9, 8.7, 10.2, 11.5]
-        leakage_curve: list[float] = []
-        for i in range(30):
-            t = i + 1  # 1..30 分钟
-            # 线性插值
-            for k in range(len(_leakage_key) - 1):
-                if _leakage_key[k] <= t <= _leakage_key[k + 1]:
-                    x0, x1 = _leakage_key[k], _leakage_key[k + 1]
-                    y0, y1 = _leakage_val[k], _leakage_val[k + 1]
-                    leakage_curve.append(round(y0 + (y1 - y0) * (t - x0) / (x1 - x0), 2))
-                    break
+
+def _register_devices(registry: DriverRegistry) -> None:
+    """从 hardware_simulation_data.json 加载真实油化设备。"""
+    import json as _json
+    from pathlib import Path
+
+    from app.hardware.drivers import MockDriver
+
+    data_file = Path(__file__).resolve().parents[3] / "hardware_info" / "hardware_simulation_data.json"
+    with open(data_file, encoding="utf-8") as f:
+        data = _json.load(f)
+
+    devices = data.get("devices", {})
+
+    # 高温高压失水仪（HTHP）—— 演示主场景，HTHP-01 带漏失量曲线
+    for i, dev in enumerate(devices.get("高温高压失水仪", []), start=1):
+        device_id = dev["device_id"]
+        params = dev.get("parameters", {})
+        leakage_raw = params.get("漏失量曲线", [])
+        curve = None
+        if leakage_raw:
+            keys = [p["time_min"] for p in leakage_raw]
+            vals = [p["leakage_ml"] for p in leakage_raw]
+            curve = {"漏失量": _interp_curve(keys, vals, 30)}
         registry.register(
-            "HTHP-01",
+            device_id,
             MockDriver(
-                "HTHP-01",
+                device_id,
                 metrics=[
                     {"name": "温度", "unit": "°C", "initial": 25},
                     {"name": "漏失量", "unit": "ml", "initial": 0},
                 ],
                 tick_s=0.2,
-                curve={"漏失量": leakage_curve},
-                name="高温高压失水仪",
+                curve=curve,
+                name=f"高温高压失水仪 {device_id}",
                 type_="hthp",
             ),
         )
-        # 通用设备（与硬件面板一致，作为设备台账）
+
+    # 六速流变仪（Rheometer）
+    for dev in devices.get("六速流变仪", []):
+        device_id = dev["device_id"]
+        params = dev.get("parameters", {})
+        metrics = [
+            {"name": k, "unit": "", "initial": v}
+            for k, v in params.items() if isinstance(v, (int, float))
+        ]
         registry.register(
-            "rct-01",
+            device_id,
             MockDriver(
-                "rct-01",
-                metrics=[
-                    {"name": "温度", "unit": "°C", "initial": 185.3},
-                    {"name": "压力", "unit": "MPa", "initial": 4.2},
-                    {"name": "液位", "unit": "%", "initial": 62},
-                ],
-                name="加氢反应器 R-101",
-                type_="reactor",
+                device_id,
+                metrics=metrics,
+                name=f"六速旋转粘度计 {device_id}",
+                type_="rheometer",
             ),
         )
+
+    # 稠化仪（Thickener）
+    for dev in devices.get("稠化仪", []):
+        device_id = dev["device_id"]
+        params = dev.get("parameters", {})
+        metrics = [
+            {"name": k, "unit": "", "initial": v}
+            for k, v in params.items() if isinstance(v, (int, float))
+        ]
         registry.register(
-            "gc-01",
+            device_id,
             MockDriver(
-                "gc-01",
-                metrics=[
-                    {"name": "柱温", "unit": "°C", "initial": 220},
-                    {"name": "载气压力", "unit": "MPa", "initial": 0.45},
-                ],
-                name="气相色谱仪 GC-2030",
-                type_="chromatograph",
+                device_id,
+                metrics=metrics,
+                name=f"稠化仪 {device_id}",
+                type_="thickener",
             ),
         )
-        registry.register(
-            "bal-01",
-            MockDriver(
-                "bal-01",
-                metrics=[{"name": "当前重量", "unit": "g", "initial": 12.548}],
-                name="分析天平 XS205",
-                type_="balance",
-            ),
-        )
-        registry.register(
-            "ph-01",
-            MockDriver(
-                "ph-01",
-                metrics=[
-                    {"name": "pH", "unit": "", "initial": 7.42},
-                    {"name": "温度", "unit": "°C", "initial": 25.3},
-                ],
-                name="pH计 FE28",
-                type_="ph_meter",
-            ),
-        )
-        registry.register(
-            "pump-01",
-            MockDriver(
-                "pump-01",
-                metrics=[{"name": "流速", "unit": "mL/min", "initial": 0}],
-                name="蠕动泵 RP-100",
-                type_="pump",
-            ),
-        )
+
+
+def get_orchestrator() -> Orchestrator:
+    """获取全局 Orchestrator 实例（从 json 加载真实油化设备）。"""
+    global _orchestrator
+    if _orchestrator is None:
+        from app.hardware.drivers import DriverRegistry
+
+        registry = DriverRegistry()
+        _register_devices(registry)
         _orchestrator = Orchestrator(registry)
         logger.bind(component="orchestrator").info(
-            "全局 Orchestrator 已初始化（Mock 设备注册）"
+            "全局 Orchestrator 已初始化（{} 台真实设备）", len(registry.list_devices())
         )
     return _orchestrator
 

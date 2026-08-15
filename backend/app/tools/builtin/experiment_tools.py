@@ -186,10 +186,47 @@ class QueryExperimentResultTool(BaseTool):
         )
 
 
+@register_tool(ToolMetadata(
+    name="generate_experiment_report",
+    description="为指定实验生成报告文件（Word + Excel）。一次调用即可完成："
+    "查询实验数据、生成 Word 报告（含信息表/步骤/数据/审计）和 Excel 数据表，"
+    "返回文件路径。当用户要求'生成实验报告''导出报告'时使用此工具。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "experiment_id": {"type": "string", "description": "实验ID，如 EXP-ABC123"},
+        },
+        "required": ["experiment_id"],
+    },
+))
+class GenerateExperimentReportTool(BaseTool):
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        experiment_id = kwargs.get("experiment_id", "").strip()
+        if not experiment_id:
+            return ToolResult(success=False, error="缺少 experiment_id")
+
+        from app.services.report_generator import generate_report
+
+        try:
+            result = await generate_report(experiment_id)
+            return ToolResult(
+                success=True,
+                data={
+                    "experiment_id": experiment_id,
+                    "word_path": result["word_path"],
+                    "excel_path": result["excel_path"],
+                    "message": f"报告已生成：Word={result['word_path']}，Excel={result['excel_path']}",
+                },
+            )
+        except ValueError as exc:
+            return ToolResult(success=False, error=str(exc))
+
+
 __all__ = [
     "ListProtocolsTool",
     "CreateExperimentTool",
     "StartExperimentTool",
     "QueryExperimentProgressTool",
     "QueryExperimentResultTool",
+    "GenerateExperimentReportTool",
 ]
