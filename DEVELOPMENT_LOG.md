@@ -22,7 +22,7 @@
   - `GET /experiments/{id}` 响应加 `audits`（时间正序）+ `protocol_name` + `report_path`
   - 前端详情区加"执行记录"时间线（创建→开始→每步→完成）
 
-- **真实油化设备**
+- **油化仿真设备**
   - 设备清单从 `hardware_simulation_data.json` 加载：HTHP-01/02（高温高压失水仪）、Rheo-01/02（六速旋转粘度计，600/300/6/3 转读数）、Thick-01/02（稠化仪）
   - 删除 5 台通用假设备；HTHP-01 保留漏失量剧本曲线（7 点插值 30 点）
 
@@ -40,6 +40,7 @@
 - **send_command 走统一源**：从 DriverRegistry 取设备，HTHP-01 不再 404
 - **created_at 类型**：String→DateTime，batch_alter_table 迁移，种子数据改 datetime 对象
 - **超轮数不写 Memory**：chat_with_tools / chat_stream_with_tools 的"已达最大轮数"提示加 skip_memory 标志
+- **硬件工具层统一数据源**：`read_hardware` / `send_hardware_command` 从 DriverRegistry 读（不再读旧 `_DEVICES`），`send_command` 走 `driver.send_command`（不再 requests 自回调）；`hardware_collector` 遥测采集也从 DriverRegistry 读——消除硬件 API/工具/采集器三处数据源分裂
 
 ### Changed
 
@@ -51,7 +52,7 @@
 
 - 连续两次实验：漏失量 30 点（0.5→11.5）、温度 25→180，第二次正常 ✅
 - 实验报告：Word + Excel 自动生成，文件真实存在 ✅
-- 设备源：6 台真实油化设备（HTHP/Rheo/Thick 各 2 台）✅
+- 设备源：6 台油化仿真设备（HTHP/Rheo/Thick 各 2 台）✅
 - pytest 2 通过、前端 build 通过 ✅
 
 ---

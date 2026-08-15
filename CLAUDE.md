@@ -65,7 +65,7 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 | ✅ 可用 | FastAPI 骨架、LLM 客户端 (OpenAI 兼容/DeepSeek + Ollama 预留)、Playwright 网页工具 (browse/smart_fill)、对话端点 (含 SSE)、Guardrails 已接入 chat 端点、DB 端点已接入 ORM (SQLite) |
 | 🔧 已实现未验证 | 25个工具中除已验证之外的其余工具、文件监听 (watchdog)、实验中心 (编排器 orchestrator / 报告生成 / SSE 事件) |
 | 🔧 备用链路 | 旧 Planner→Executor（手写 JSON 计划），代码保留但主链路已改用 function calling，不再使用 |
-| ⚠️ Mock | 硬件设备 (油化仿真设备源统一到 DriverRegistry，驱动仍是 MockDriver 模拟器，指令假闭环)、DB users 表在 ORM 但未接认证 |
+| ⚠️ Mock | 硬件设备 (油化仿真设备源统一到 DriverRegistry，驱动仍是 MockDriver 模拟器，指令为模拟下发)、DB users 表在 ORM 但未接认证 |
 | 🔌 预留 | 用户认证 (AUTH_ENABLED=false)、MCP 客户端 (写了没接)、真实硬件通信 (RS232/USB/GPIB) |
 
 ## 项目规则
@@ -99,7 +99,7 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 ### 关键已知问题
 - **主链路已改用原生 function calling**：模型直接输出 `tool_calls`，不依赖 LLM 产出 JSON 计划。旧的 Planner→Executor 链路（依赖 `_extract_json_object()` 三层容错解析 JSON 计划）代码仍保留，但已不在主链路；只有切回旧链路时才需要考虑 JSON 容错问题
 - **MemoryManager 纯内存**，进程重启全部丢失，不是 Bug 是设计如此（还没做持久化）
-- **`send_hardware_command` 假闭环**：工具 → HTTP 调自己 API 端点 → API 返回 `{"status":"queued"}` → 工具返回成功。没有真实硬件通信
+- **`send_hardware_command` 仍无真实硬件通信**：工具 → DriverRegistry 取 MockDriver → `driver.send_command()` 返回 `{"status":"queued","message":"...（模拟）"}`。走的是模拟器，未接真实 RS232/USB/GPIB
 - **`init_db()` 三阶段执行**：Alembic → create_all(幂等补建) → seed(幂等填充)。不要回退到早 return 模式，否则新增 ORM 表不会创建
 - **Playwright 在后台线程 + 任务队列模式运行**（`_SyncBrowserManager`），不要试图改用 async API，会触发 Windows greenlet 跨线程错误
 

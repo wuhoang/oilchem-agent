@@ -1,7 +1,7 @@
 # OilChem Agent 项目状态报告 (v1.1.0)
 
 > 更新：2026-08-15
-> 基于全部源码逐文件阅读，不含推测。v1.1.0 变更：实验报告自动生成、追溯视图、真实油化设备、SSE 实时事件、设备复位修复。
+> 基于全部源码逐文件阅读，不含推测。v1.1.0 变更：实验报告自动生成、追溯视图、油化仿真设备（DriverRegistry 统一源）、SSE 实时事件、设备复位修复。
 
 ---
 
@@ -116,7 +116,7 @@ Agent 内部管线:
 
 | 工具 | 状态 | 说明 |
 |---|---|---|
-| `read_hardware` | ✅ 统一源 | v1.1.0 起从 DriverRegistry 读 6 台真实油化设备（HTHP/Rheo/Thick），设备实时遥测受编排引擎控制 |
+| `read_hardware` | ✅ 统一源 | v1.1.0 起从 DriverRegistry 读 6 台油化仿真设备（HTHP/Rheo/Thick），设备实时遥测受编排引擎控制 |
 | `send_hardware_command` | ✅ 统一源 | v1.1.0 起走 DriverRegistry 下发指令（`driver.send_command`），不再 requests 回调自己 API |
 | `query_hardware_history` | ✅ 可用 | 查询 `DeviceTelemetryHistory` 表，后台采集器从 DriverRegistry 读遥测，实现持久化趋势分析 |
 
@@ -164,7 +164,7 @@ Agent 内部管线:
 | `/api/v1/files/tools` | GET | 🔧 | 列出文件工具 |
 | `/api/v1/files/watch/start|stop` | POST | 🔧 | 文件监听开关 |
 | `/api/v1/ws/files/events` | WS | 🔧 | 文件变化推送+心跳 |
-| `/api/v1/hardware/*` | GET/POST | ✅ 统一源 | 从 DriverRegistry 读 6 台真实油化设备，BUSY 状态，send_command 走统一源 |
+| `/api/v1/hardware/*` | GET/POST | ✅ 统一源 | 从 DriverRegistry 读 6 台油化仿真设备，BUSY 状态，send_command 走统一源 |
 | `/api/v1/db/*` | GET/POST/DELETE | ✅ 已接入 ORM | 5 个端点，`AsyncSession` + `select()` 真实查询 |
 | `/api/v1/protocols` | GET | ✅ | 方案库列表/详情 |
 | `/api/v1/experiments` | GET/POST | ✅ | 实验列表/创建 |
@@ -259,8 +259,8 @@ Agent 内部管线:
 2. **MCP**：`mcp/client.py` 框架完整但从未在 Agent 管线中引用，无任何 MCP Server 配置
 3. **用户认证**：`AUTH_ENABLED=false`，`security.py` 空壳，无 login 端点
 
-### 5.3 硬件的假闭环
-`send_hardware_command` → `requests.post(127.0.0.1:8000/api/v1/hardware/devices/{id}/command)` → 端点返回 `{"status":"queued"}` → 工具返回 `success=True`。从工具到端点到响应，没有任何真实硬件通信。
+### 5.3 硬件仍为模拟（无真实通信）
+`send_hardware_command` → `DriverRegistry.get(device_id)` 取 `MockDriver` → `driver.send_command()` 返回 `{"status":"queued","message":"...（模拟）"}` → 工具返回 `success=True`。底层是 MockDriver 模拟器，没有任何真实 RS232/USB/GPIB 通信。
 
 ### 5.4 Playwright 限制
 - Headless 模式，无反反爬虫措施

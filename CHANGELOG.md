@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **实验报告自动生成**：`report_generator.py` 生成 Word 报告（信息表/方案步骤/步骤执行/测量数据/审计记录/结论）+ Excel 数据表（多指标分 sheet）；实验完成时自动生成，文件存 `storage/reports/{id}/`；`GET /experiments/{id}/report` 端点 + `generate_experiment_report` Agent 工具（单轮完成）
 - **追溯视图**：`GET /experiments/{id}` 返回 audits 时间线 + protocol 名称 + sample 信息；前端实验中心展示"执行记录"时间线
-- **真实油化设备**：设备从 `hardware_simulation_data.json` 加载（HTHP-01/02 失水仪、Rheo-01/02 六速流变仪、Thick-01/02 稠化仪），替换 5 台通用假设备；HTHP-01 漏失量 7 点插值 30 点
+- **油化仿真设备**：设备从 `hardware_simulation_data.json` 加载（HTHP-01/02 失水仪、Rheo-01/02 六速流变仪、Thick-01/02 稠化仪），替换 5 台通用假设备；HTHP-01 漏失量 7 点插值 30 点
 - **SSE 实验事件**：orchestrator 事件广播（experiment_status/step_status/measurement）+ `GET /experiments/events` SSE 端点；前端 EventSource 实时更新替换 3 秒轮询
 - **实验员选择**：`GET /experimenters` 端点，前端一键开始弹操作员下拉 + 样品号输入
 
