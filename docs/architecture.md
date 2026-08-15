@@ -1,40 +1,36 @@
-# OilChem Agent — Architecture (Step 8)
+# OilChem Agent — Architecture
 
 ## High-level
 
 ```
-┌────────────────────┐    HTTP    ┌────────────────────┐
-│  React + Vite SPA  │ ─────────▶ │  FastAPI backend   │
-│  (frontend/)       │ ◀───────── │  (backend/app/)    │
-└────────────────────┘   JSON     └────────────────────┘
-                                       │
-                                       ▼
-                              ┌────────────────────┐
-                              │  Loguru logs       │
-                              │  (logs/app.log)    │
-                              └────────────────────┘
-                                       │
-          ┌────────────────────────────┼────────────────────────────┐
-          ▼                            ▼                            ▼
- ┌──────────────┐              ┌──────────────┐              ┌──────────────┐
- │  LLM Client   │              │ Agent Manager │              │  FileWatcher │
- │  (app/llm/)  │              │  (app/agent/) │              │(app/services)│
- └──────────────┘              └──────┬───────┘              └──────────────┘
-                                       │
-                    ┌──────────────────┼──────────────────┐
-                    ▼                  ▼                  ▼
-           ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-           │ ToolManager  │  │  Guardrails  │  │  Memory      │
-           │ (function    │  └──────────────┘  │  (纯内存)     │
-           │  calling,    │                    └──────────────┘
-           │  25 tools)   │
-           └──────────────┘
-                                    │
-                                    ▼
-           ┌──────────────────────────────────────────┐
-           │  Database (SQLAlchemy + aiosqlite)         │
-           │  User / Session / Message / Audit / Know  │
-           └──────────────────────────────────────────┘
+┌────────────────────┐    HTTP/SSE  ┌────────────────────┐
+│  React + Vite SPA  │ ───────────▶ │  FastAPI backend   │
+│  (frontend/)       │ ◀─────────── │  (backend/app/)    │
+└────────────────────┘   JSON/SSE   └────────┬───────────┘
+                                              │
+          ┌───────────────────────────────────┼───────────────────────────┐
+          ▼                                   ▼                           ▼
+ ┌──────────────────┐              ┌──────────────────────┐    ┌──────────────────┐
+ │  LLM Client      │              │  AgentManager         │    │  Hardware Collector│
+ │  (app/llm/)      │              │  (function calling)   │    │  (后台遥测采集)    │
+ └──────────────────┘              └──────────┬───────────┘    └────────┬─────────┘
+                                               │                          │
+                    ┌──────────────────────────┼──────────────┐           │
+                    ▼                          ▼              ▼           ▼
+           ┌──────────────┐          ┌──────────────────┐  ┌──────────────┐
+           │ ToolManager  │          │  Orchestrator    │  │ DriverRegistry│
+           │ (25 tools)   │          │  编排引擎(M2)    │  │ (6台油化仿真  │
+           └──────┬───────┘          │  状态机+主循环   │  │  设备统一源)  │
+                  │                  └────────┬─────────┘  └──────┬───────┘
+                  │                           │ 执行步骤          │ 遥测
+                  ▼                           ▼                   ▼
+           ┌──────────────────────────────────────────────────────────┐
+           │  Database (SQLAlchemy + aiosqlite, 16 张表)                │
+           │  User/Session/Message/ToolAudit/Knowledge                │
+           │  + Experiment/Sample/Device/DeviceTelemetryHistory       │
+           │  + ExperimentAudit/Experimenter/Protocol/ProtocolStep    │
+           │  + Material/ExperimentStep/Measurement                   │
+           └──────────────────────────────────────────────────────────┘
 ```
 
 ## Backend layout
@@ -92,6 +88,36 @@
 │  │list_files│  │delete_file│                │
 │  └──────────┘  └──────────┘                │
 └─────────────────────────────────────────────┘
+```
+
+## 实验域架构（M1-M7）
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│          app/services/orchestrator.py (M2 编排引擎)          │
+│  - 实验状态机: 草稿→待执行→执行中→完成/异常/中止            │
+│  - 步骤展开(protocol_steps → experiment_steps)              │
+│  - 主循环执行 + 异常冻结/重试/跳步/中止                      │
+│  - SSE 事件广播(experiment_status/step_status/measurement)  │
+└──────┬──────────────────────────────┬───────────────────────┘
+       │ acquire/release              │ 完成时
+       ▼                              ▼
+┌─────────────────────┐   ┌─────────────────────────────┐
+│ DriverRegistry (M3) │   │ report_generator.py (M7)    │
+│  6台油化仿真设备     │   │  Word 报告 + Excel 数据表    │
+│  ┌───────────────┐ │   │  存 storage/reports/{id}/     │
+│  │ MockDriver    │ │   └─────────────────────────────┘
+│  │ (剧本引擎)    │ │
+│  │ - 升温/恒温   │ │
+│  │ - 漏失量曲线  │ │
+│  │ - reset()     │ │
+│  └───────────────┘ │
+└─────────────────────┘
+
+数据模型(M1): 16 张表
+  实验员 Experimenter → 方案 Protocol → 方案步骤 ProtocolStep
+  实验 Experiment(含 result/report_path) → 步骤实例 ExperimentStep
+  物料 Material ← 样品 Sample；测量 Measurement；审计 ExperimentAudit
 ```
 
 ## File Watcher 架构

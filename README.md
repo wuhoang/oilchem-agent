@@ -463,8 +463,9 @@ oilchem-agent/
 
 ## 相关文档
 
+- [系统顶层设计](docs/system_design.md)
+- [详细设计](docs/detailed_design.md)
 - [架构设计](docs/architecture.md)
-- [路线图](docs/roadmap.md)
 - [API 文档](docs/api.md)
 - [项目状态](docs/PROJECT_STATUS.md)
 - [更新日志](CHANGELOG.md)
