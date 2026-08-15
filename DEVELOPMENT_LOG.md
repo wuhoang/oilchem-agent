@@ -41,6 +41,10 @@
 - **created_at 类型**：String→DateTime，batch_alter_table 迁移，种子数据改 datetime 对象
 - **超轮数不写 Memory**：chat_with_tools / chat_stream_with_tools 的"已达最大轮数"提示加 skip_memory 标志
 - **硬件工具层统一数据源**：`read_hardware` / `send_hardware_command` 从 DriverRegistry 读（不再读旧 `_DEVICES`），`send_command` 走 `driver.send_command`（不再 requests 自回调）；`hardware_collector` 遥测采集也从 DriverRegistry 读——消除硬件 API/工具/采集器三处数据源分裂
+- **设备三套账统一（DSH 审计断点 1）**：
+  - 问题：`devices` 表 seed（R-101/GC-2030/XS205/FE28/RP-100）、DriverRegistry（HTHP/Rheo/Thick 6 台）、`hardware.py` 兜底 `_DEVICES`（rct-01/gc-01 等）三本账各记各的，导致「数据管理」面板和「硬件面板」显示不同设备、实验方案引用的设备在台账查不到
+  - 修复：`SEED_DEVICES` 改为 6 台油化仿真设备（与 DriverRegistry 对齐）；`hardware.py` 删除 `_DEVICES` 兜底和 `_refresh_metrics`，端点只读 DriverRegistry；`DeviceDriver` 基类补 `send_command` 抽象方法；query_hardware_history 参数描述改为真实指标
+- **实验恢复（recover）**：orchestrator 加 `recover()`，启动时扫描 status=「执行中」的实验，把卡在 running 的步骤重置为 pending 并重启后台主循环；main.py lifespan 调用——修复进程重启后实验卡死在「执行中」
 
 ### Changed
 

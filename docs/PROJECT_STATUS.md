@@ -300,7 +300,7 @@ Agent 内部管线:
 
 1. **实验报告自动生成**：新增 `generate_experiment_report` 工具（第 25 个工具）+ `services/report_generator.py` + `GET /experiments/{id}/report` 端点
 2. **实验追溯视图**：`ExperimentAudit` 审计链路补全，实验过程可追溯
-3. **油化仿真设备源统一**：`_register_devices()` 从 `hardware_info/hardware_simulation_data.json` 加载油化设备（高温高压失水仪/六速流变仪/稠化仪），统一注册到 DriverRegistry；`hardware.py` 的 5 个写死假设备降级为兜底。注意：驱动仍是 MockDriver 模拟器，非真实 RS232/USB/GPIB 通信
+3. **油化仿真设备源统一**：`_register_devices()` 从 `hardware_info/hardware_simulation_data.json` 加载油化设备（高温高压失水仪/六速流变仪/稠化仪），统一注册到 DriverRegistry；`hardware.py` 端点、`devices` 表 seed 已统一为同一套设备 ID（已删除写死兜底）。注意：驱动仍是 MockDriver 模拟器，非真实 RS232/USB/GPIB 通信
 4. **SSE 实时事件**：新增 `GET /experiments/events`，实验进度实时推送
 5. **设备复位修复**
 6. **工具数 24 → 25**，版本号 1.0.0 → 1.1.0

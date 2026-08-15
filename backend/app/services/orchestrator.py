@@ -36,7 +36,7 @@ class Orchestrator:
 
     # 实验状态
     STATUS_DRAFT = "草稿"
-    STATUS_READY = "待执行"
+    STATUS_READY = "待执行"  # 设计预留，当前流程未启用（create→草稿，start→执行中）
     STATUS_RUNNING = "执行中"
     STATUS_COMPLETED = "已完成"
     STATUS_FAILED = "异常"
@@ -150,7 +150,7 @@ class Orchestrator:
         )
 
     async def recover(self) -> int:
-        """启动时恢复未完成的实验（重启前 status 为 running/pending）。
+        """启动时恢复未完成的实验（重启前 status 为「执行中」）。
 
         进程重启后 _tasks 丢失，但实验状态留在数据库；此方法把卡在
         running 的步骤重置为 pending，并重新启动后台主循环。
@@ -166,9 +166,7 @@ class Orchestrator:
         factory = get_session_factory()
         async with factory() as session:
             result = await session.execute(
-                select(Experiment).where(
-                    Experiment.status.in_([self.STATUS_RUNNING, self.STATUS_READY])
-                )
+                select(Experiment).where(Experiment.status == self.STATUS_RUNNING)
             )
             experiments = result.scalars().all()
 
@@ -235,6 +233,30 @@ class Orchestrator:
                     for s in steps
                 ],
             }
+
+    async def get_measurements(self, experiment_id: str) -> list[dict[str, Any]]:
+        """查询实验测量数据（时间序列，按时间升序）。"""
+        from app.database.session import get_session_factory
+        from app.models.tables import Measurement
+
+        factory = get_session_factory()
+        async with factory() as session:
+            result = await session.execute(
+                select(Measurement)
+                .where(Measurement.experiment_id == experiment_id)
+                .order_by(Measurement.timestamp.asc())
+            )
+            measurements = result.scalars().all()
+
+        return [
+            {
+                "metric_name": m.metric_name,
+                "value": m.metric_value,
+                "unit": m.unit,
+                "timestamp": m.timestamp.isoformat() if m.timestamp else None,
+            }
+            for m in measurements
+        ]
 
     # -- 内部 ---------------------------------------------------------------
 
@@ -702,8 +724,14 @@ def _register_devices(registry: DriverRegistry) -> None:
     from app.hardware.drivers import MockDriver
 
     data_file = Path(__file__).resolve().parents[3] / "hardware_info" / "hardware_simulation_data.json"
-    with open(data_file, encoding="utf-8") as f:
-        data = _json.load(f)
+    try:
+        with open(data_file, encoding="utf-8") as f:
+            data = _json.load(f)
+    except (OSError, ValueError) as exc:
+        logger.bind(component="orchestrator").warning(
+            "设备仿真数据加载失败，注册 0 台设备: {} ({})", data_file, exc
+        )
+        return
 
     devices = data.get("devices", {})
 

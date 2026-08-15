@@ -36,7 +36,7 @@ def _get_registry():
 
 
 @router.get("/hardware/devices")
-async def list_devices(refresh: bool = True) -> dict:
+async def list_devices() -> dict:
     """列出所有硬件设备（统一设备源 DriverRegistry）。"""
     devices = await _get_registry().get_device_info()
     return {"devices": devices}

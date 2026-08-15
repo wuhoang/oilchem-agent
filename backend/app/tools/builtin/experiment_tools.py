@@ -154,17 +154,9 @@ class QueryExperimentResultTool(BaseTool):
         if not experiment_id:
             return ToolResult(success=False, error="缺少 experiment_id")
 
-        from app.database.session import get_session_factory
-        from app.models.tables import Measurement
+        from app.services.orchestrator import get_orchestrator
 
-        factory = get_session_factory()
-        async with factory() as session:
-            result = await session.execute(
-                select(Measurement)
-                .where(Measurement.experiment_id == experiment_id)
-                .order_by(Measurement.timestamp.asc())
-            )
-            measurements = result.scalars().all()
+        measurements = await get_orchestrator().get_measurements(experiment_id)
 
         if not measurements:
             return ToolResult(success=False, error=f"实验 {experiment_id} 暂无测量数据")
@@ -174,14 +166,7 @@ class QueryExperimentResultTool(BaseTool):
             data={
                 "experiment_id": experiment_id,
                 "count": len(measurements),
-                "measurements": [
-                    {
-                        "metric_name": m.metric_name,
-                        "value": m.metric_value,
-                        "unit": m.unit,
-                    }
-                    for m in measurements
-                ],
+                "measurements": measurements,
             },
         )
 

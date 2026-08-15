@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **send_command**：从 DriverRegistry 取设备下发指令，不再走写死列表（HTHP-01 不再 404）
 - **created_at 类型**：Experiment.created_at String→DateTime（Alembic 004 batch 迁移）
 - **超轮数不污染记忆**：达到最大工具调用轮数的系统提示不写入 Memory
+- **设备三套账统一**：devices 表 seed（原 R-101/GC-2030 等 5 台旧设备）、DriverRegistry（6 台油化仿真设备）、hardware.py 兜底（原 rct-01 等又 5 台）三本账各记各的，导致「数据管理」和「硬件面板」显示不同设备；统一为 DriverRegistry 的 6 台油化仿真设备（SEED_DEVICES 对齐、hardware.py 删除 `_DEVICES` 兜底）
+- **实验恢复**：orchestrator 加 `recover()`，main.py 启动时恢复重启前 status 为「执行中」的实验（重置卡住的 running 步骤 + 重启后台主循环），修复进程重启后实验卡死
+- **send_command 进抽象接口**：`DeviceDriver` 基类补 `send_command` 抽象方法（原仅 MockDriver 有，换真实驱动会崩）
+- **旧指标名修正**：query_hardware_history 参数描述从旧设备指标（温度/压力/液位）改为真实指标（温度/漏失量/转读数/稠化时间）
 
 ## [1.0.0] - 2026-08-14
 
