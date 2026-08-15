@@ -17,11 +17,25 @@ from app.tools.registry import register_tool
 
 
 def _get_devices() -> list[dict[str, Any]]:
-    """获取当前所有硬件设备数据（与 hardware.py 中的数据源共享）。"""
-    from app.api.v1.endpoints.hardware import _DEVICES, _refresh_metrics
+    """获取当前所有硬件设备数据（统一设备源 DriverRegistry）。"""
+    return [
+        {"id": "HTHP-01", "name": "高温高压失水仪 HTHP-01", "type": "hthp"},
+        {"id": "HTHP-02", "name": "高温高压失水仪 HTHP-02", "type": "hthp"},
+        {"id": "Rheo-01", "name": "六速旋转粘度计 Rheo-01", "type": "rheometer"},
+        {"id": "Rheo-02", "name": "六速旋转粘度计 Rheo-02", "type": "rheometer"},
+        {"id": "Thick-01", "name": "稠化仪 Thick-01", "type": "thickener"},
+        {"id": "Thick-02", "name": "稠化仪 Thick-02", "type": "thickener"},
+    ]
 
-    _refresh_metrics()
-    return [dict(d) for d in _DEVICES]
+
+async def _get_devices_async() -> list[dict[str, Any]]:
+    """获取所有设备实时数据（统一设备源 DriverRegistry）。"""
+    from app.services.orchestrator import get_orchestrator
+
+    try:
+        return await get_orchestrator()._drivers.get_device_info()
+    except Exception:
+        return []
 
 
 MAX_POINTS = 100
@@ -78,7 +92,7 @@ def _downsample(
     name="read_hardware",
     description=(
         "读取实验室硬件设备的【实时】数据快照。返回设备当前最新的传感器读数"
-        "（温度、压力、液位、pH、流速等）。适用于：用户问'现在温度多少'、"
+        "（温度、压力、漏失量、转读数等）。适用于：用户问'现在温度多少'、"
         "'某设备当前状态'、'实时读数'这类单点查询。"
         "注意：查询历史趋势/过去时间段的数值请用 query_hardware_history，"
         "不要用本工具。"
@@ -86,17 +100,17 @@ def _downsample(
     parameters={
         "device_id": {
             "type": "string",
-            "description": "设备ID（可选）。留空则返回所有设备信息。可选：rct-01(加氢反应器)、gc-01(气相色谱仪)、bal-01(分析天平)、ph-01(pH计)、pump-01(蠕动泵)",
+            "description": "设备ID（可选）。留空则返回所有设备。可选：HTHP-01/HTHP-02(高温高压失水仪)、Rheo-01/Rheo-02(六速旋转粘度计)、Thick-01/Thick-02(稠化仪)",
         },
     },
 ))
 class ReadHardwareTool(BaseTool):
-    """读取硬件设备数据。"""
+    """读取硬件设备数据（统一设备源）。"""
 
     async def execute(self, **kwargs: Any) -> ToolResult:
         device_id = kwargs.get("device_id", "").strip()
         try:
-            devices = _get_devices()
+            devices = await _get_devices_async()
 
             if device_id:
                 for d in devices:
@@ -109,7 +123,6 @@ class ReadHardwareTool(BaseTool):
                                 "type": d["type"],
                                 "status": d["status"],
                                 "metrics": d["metrics"],
-                                "last_update": d["last_update"],
                             },
                         )
                 return ToolResult(
@@ -130,16 +143,7 @@ class ReadHardwareTool(BaseTool):
                     success=True,
                     data={
                         "total_devices": len(devices),
-                        "devices": [
-                            {
-                                "id": d["id"],
-                                "name": d["name"],
-                                "type": d["type"],
-                                "status": d["status"],
-                                "metrics": d["metrics"],
-                            }
-                            for d in devices
-                        ],
+                        "devices": devices,
                         "summary": summary,
                     },
                 )
@@ -157,7 +161,7 @@ class ReadHardwareTool(BaseTool):
     parameters={
         "device_id": {
             "type": "string",
-            "description": "目标设备ID，如 rct-01",
+            "description": "目标设备ID，如 HTHP-01、Rheo-01、Thick-01",
         },
         "command": {
             "type": "string",
@@ -170,7 +174,7 @@ class ReadHardwareTool(BaseTool):
     },
 ))
 class SendHardwareCommandTool(BaseTool):
-    """向硬件设备下发指令。"""
+    """向硬件设备下发指令（统一设备源）。"""
 
     async def execute(self, **kwargs: Any) -> ToolResult:
         device_id = kwargs.get("device_id", "").strip()
@@ -183,21 +187,13 @@ class SendHardwareCommandTool(BaseTool):
             return ToolResult(success=False, error="缺少 command 参数")
 
         try:
-            import requests
+            from app.services.orchestrator import get_orchestrator
 
-            resp = requests.post(
-                f"http://127.0.0.1:8000/api/v1/hardware/devices/{device_id}/command",
-                json={"command": command, "params": params or {}},
-                timeout=5,
-            )
-            data = resp.json()
-            if resp.status_code == 200:
-                return ToolResult(success=True, data=data)
-            else:
-                return ToolResult(
-                    success=False,
-                    error=f"HTTP {resp.status_code}: {data.get('detail', str(data))}",
-                )
+            driver = get_orchestrator()._drivers.get(device_id)
+            if driver is None:
+                return ToolResult(success=False, error=f"设备 {device_id} 不存在")
+            result = await driver.send_command(command, params or {})
+            return ToolResult(success=True, data=result)
         except Exception as exc:
             return ToolResult(success=False, error=f"下发指令失败: {exc}")
 
@@ -214,7 +210,7 @@ class SendHardwareCommandTool(BaseTool):
     parameters={
         "device_id": {
             "type": "string",
-            "description": "设备ID。可选：rct-01(加氢反应器)、gc-01(气相色谱仪)、bal-01(分析天平)、ph-01(pH计)、pump-01(蠕动泵)",
+            "description": "设备ID。可选：HTHP-01/HTHP-02(高温高压失水仪)、Rheo-01/Rheo-02(六速旋转粘度计)、Thick-01/Thick-02(稠化仪)",
         },
         "metric_name": {
             "type": "string",

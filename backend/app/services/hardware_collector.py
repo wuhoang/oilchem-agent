@@ -91,11 +91,15 @@ class HardwareCollectorService:
         )
 
     async def _collect_once(self) -> None:
-        """单次采集：读取设备指标并批量写入数据库。"""
-        from app.api.v1.endpoints.hardware import _DEVICES, _refresh_metrics
+        """单次采集：从统一设备源 DriverRegistry 读遥测并写入数据库。"""
+        try:
+            from app.services.orchestrator import get_orchestrator
 
-        _refresh_metrics()
-        records = self._build_records(_DEVICES)
+            devices = await get_orchestrator()._drivers.get_device_info()
+        except Exception:
+            devices = []
+
+        records = self._build_records(devices)
         if not records:
             logger.bind(component="hardware_collector").debug(
                 "No telemetry records to write"

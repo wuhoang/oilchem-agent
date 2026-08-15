@@ -40,15 +40,15 @@ OilChem Agent 是一个面向石油化工/化学实验室的 AI 助手：通过�
          ▼                                  ▼
   ┌─────────────┐                   ┌───────────────┐
   │  LLM Client │                   │  AgentManager │
-  │ (DeepSeek / │                   │  ┌─────────┐  │
-  │  OpenAI兼容)│                   │  │ Planner │  │
-  └─────────────┘                   │  │Executor │  │
-                                    │  │ Memory  │  │
-  ┌─────────────┐                   │  └─────────┘  │
-  │ 19 个工具    │ ◀──── 调用 ───────┤               │
-  │ (文件/Office │                   │  ToolManager  │
-  │  图表/网页/  │                   └───────────────┘
-  │  硬件)      │
+  │ (DeepSeek / │                   │  function     │
+  │  OpenAI兼容)│                   │  calling      │
+  └─────────────┘                   │  + Memory     │
+                                    │               │
+  ┌─────────────┐                   │  ToolManager  │
+  │ 25 个工具    │ ◀──── 调用 ───────┤               │
+  │ (文件/Office │                   └───────────────┘
+  │  图表/网页/  │
+  │  硬件/实验)  │
   └─────────────┘
 ```
 
@@ -305,7 +305,7 @@ playwright install chromium
 
 ---
 
-## Agent 工具系统（19 个）
+## Agent 工具系统（25 个）
 
 Agent 内置以下工具，可在对话中自动调用：
 
@@ -347,6 +347,17 @@ Agent 内置以下工具，可在对话中自动调用：
 | `smart_fill_form` | 智能识别并填写网页表单 |
 | `fill_webform` | 自动登录并填写网页表单 |
 | `extract_webpage_text` | 提取网页文本内容 |
+
+### 实验中心
+
+| 工具 | 说明 |
+|------|------|
+| `list_protocols` | 列出可用实验方案 |
+| `create_experiment` | 创建实验记录 |
+| `start_experiment` | 启动实验执行 |
+| `query_experiment_progress` | 查询实验进度 |
+| `query_experiment_result` | 查询实验结果与测量数据 |
+| `generate_experiment_report` | 生成实验报告（Word + Excel） |
 
 ---
 
@@ -415,7 +426,7 @@ oilchem-agent/
 │   │   │   └── health.py             #     健康检查
 │   │   ├── core/                     #   配置、日志、安全
 │   │   ├── llm/                      #   LLM 客户端 + 提供商抽象
-│   │   ├── tools/builtin/            #   19 个内置工具（注册表 + 管理器）
+│   │   ├── tools/builtin/            #   25 个内置工具（注册表 + 管理器）
 │   │   ├── services/                 #   后台服务（文件监听 / 硬件遥测采集）
 │   │   ├── database/                 #   SQLAlchemy 会话管理 + 种子数据
 │   │   ├── guardrails/               #   输入/输出护栏 + RBAC
