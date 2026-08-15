@@ -341,3 +341,108 @@ export async function extractWebText(
     body: JSON.stringify(body),
   });
 }
+
+// ---------------------------------------------------------------------------
+// 实验域（M5）
+// ---------------------------------------------------------------------------
+
+export interface Protocol {
+  id: string;
+  name: string;
+  description?: string;
+  version?: string;
+  status?: string;
+}
+
+export interface Experiment {
+  id: string;
+  name: string;
+  status: string;
+  operator?: string;
+  protocol_id?: string;
+  sample_code?: string;
+  result?: string;
+}
+
+export interface ExperimentStep {
+  step_order: number;
+  device_id: string;
+  action: string;
+  status: string;
+  error?: string | null;
+}
+
+export interface ExperimentDetail {
+  experiment: Experiment;
+  steps: ExperimentStep[];
+}
+
+export interface Measurement {
+  metric_name: string;
+  value: number;
+  unit?: string | null;
+  timestamp?: string | null;
+}
+
+export async function fetchProtocols(): Promise<{ protocols: Protocol[] }> {
+  return request<{ protocols: Protocol[] }>("/protocols");
+}
+
+export async function fetchExperiments(): Promise<{ experiments: Experiment[] }> {
+  return request<{ experiments: Experiment[] }>("/experiments");
+}
+
+export async function createExperiment(payload: {
+  name: string;
+  protocol_id: string;
+  operator_id: string;
+  sample_code?: string;
+}): Promise<{ id: string; name: string; status: string }> {
+  return request("/experiments", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function startExperiment(experimentId: string): Promise<{ success: boolean; message: string }> {
+  return request(`/experiments/${encodeURIComponent(experimentId)}/start`, { method: "POST" });
+}
+
+export async function abortExperiment(experimentId: string): Promise<{ success: boolean; message: string }> {
+  return request(`/experiments/${encodeURIComponent(experimentId)}/abort`, { method: "POST" });
+}
+
+export async function fetchExperimentDetail(experimentId: string): Promise<ExperimentDetail> {
+  return request<ExperimentDetail>(`/experiments/${encodeURIComponent(experimentId)}`);
+}
+
+export async function fetchExperimentMeasurements(experimentId: string): Promise<{ measurements: Measurement[] }> {
+  return request<{ measurements: Measurement[] }>(`/experiments/${encodeURIComponent(experimentId)}/measurements`);
+}
+
+export async function fetchDashboard(): Promise<{ total_experiments: number; status_count: Record<string, number>; running: string[] }> {
+  return request("/dashboard");
+}
+
+// ---------------------------------------------------------------------------
+// 硬件设备（统一设备源）
+// ---------------------------------------------------------------------------
+
+export interface HardwareMetric {
+  name: string;
+  value: number;
+  unit?: string;
+}
+
+export interface HardwareDevice {
+  id: string;
+  name: string;
+  type: string;
+  status: "online" | "offline" | "error";
+  metrics: HardwareMetric[];
+  error?: string;
+}
+
+export async function fetchHardwareDevices(): Promise<{ devices: HardwareDevice[] }> {
+  return request<{ devices: HardwareDevice[] }>("/hardware/devices");
+}

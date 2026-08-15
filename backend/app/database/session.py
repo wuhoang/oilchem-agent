@@ -114,9 +114,17 @@ async def _seed_business_data() -> None:
         Experiment,
         Sample,
         Device,
+        Experimenter,
+        Protocol,
+        ProtocolStep,
+        Material,
         SEED_EXPERIMENTS,
         SEED_SAMPLES,
         SEED_DEVICES,
+        SEED_EXPERIMENTERS,
+        SEED_PROTOCOLS,
+        SEED_PROTOCOL_STEPS,
+        SEED_MATERIALS,
     )
 
     engine = get_engine()
@@ -146,6 +154,42 @@ async def _seed_business_data() -> None:
                 session.add(Device(**row))
             logger.bind(component="database").info(
                 "Seeded {} devices", len(SEED_DEVICES)
+            )
+
+        # 实验员表
+        result = await session.execute(select(Experimenter).limit(1))
+        if result.first() is None:
+            for row in SEED_EXPERIMENTERS:
+                session.add(Experimenter(**row))
+            logger.bind(component="database").info(
+                "Seeded {} experimenters", len(SEED_EXPERIMENTERS)
+            )
+
+        # 方案表
+        result = await session.execute(select(Protocol).limit(1))
+        if result.first() is None:
+            for row in SEED_PROTOCOLS:
+                session.add(Protocol(**row))
+            logger.bind(component="database").info(
+                "Seeded {} protocols", len(SEED_PROTOCOLS)
+            )
+
+        # 方案步骤表
+        result = await session.execute(select(ProtocolStep).limit(1))
+        if result.first() is None:
+            for row in SEED_PROTOCOL_STEPS:
+                session.add(ProtocolStep(**row))
+            logger.bind(component="database").info(
+                "Seeded {} protocol_steps", len(SEED_PROTOCOL_STEPS)
+            )
+
+        # 物料表
+        result = await session.execute(select(Material).limit(1))
+        if result.first() is None:
+            for row in SEED_MATERIALS:
+                session.add(Material(**row))
+            logger.bind(component="database").info(
+                "Seeded {} materials", len(SEED_MATERIALS)
             )
 
         await session.commit()

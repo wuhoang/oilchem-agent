@@ -5,6 +5,31 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-08-14
+
+### Added
+
+- **实验域完整闭环（M1-M7）**：从"选方案 → 一键开始 → 设备逐步执行 → 实时数据 → 全程追溯"的自动化实验主线打通
+- **M1 数据模型**：新增 6 张表（experimenters/protocols/protocol_steps/materials/experiment_steps/measurements），扩表 experiments(+operator_id/protocol_id/sample_code) 和 samples(+material_id)，含 Alembic 迁移 003
+- **M3 设备驱动层**：`DeviceDriver` 抽象接口 + `MockDriver` 剧本引擎（受控升温/恒温/测量，含 HTHP 漏失量曲线）+ `DriverRegistry` 设备占用管理
+- **M2 编排引擎**：`Orchestrator` 实验状态机（草稿→待执行→执行中→完成/异常/中止）+ 步骤展开 + 主循环 + 异常冻结/重试/跳步/中止
+- **M5 交互层**：12 个实验域 REST 端点（方案库/实验 CRUD/进度/测量/看板）+ 5 个实验域 Agent 工具（list_protocols/create_experiment/start_experiment/query_progress/query_result）
+- **M6 数据采集**：实验级 measurements 落库，measure 步骤按 complete_criteria 采 N 个数据点
+- **M7 审计追溯**：`ExperimentAudit` 表 + 实验关键动作审计（create/status/step_succeed/step_fail）
+- **前端「实验中心」Tab**：三视角（方案库 + 实验列表/看板 + 实验详情/数据），一键开始实验，3 秒轮询进度
+
+### Changed
+
+- 版本号跳跃至 1.0.0（演示版主链路闭环）
+- 种子数据真实化：HTHP 高温高压失水仪实验方案（PROTO-001，3 步骤：升温→恒温→测量漏失量）
+
+### 底层打通（系统性整合）
+
+- **统一设备源**：三套独立设备体系（前端写死 / 后端 `_DEVICES` / DriverRegistry）合并为单一 DriverRegistry 源——6 台设备（HTHP-01 + 5 台通用）统一注册，硬件 API 从 DriverRegistry 读，前端 HardwarePanel 改为从后端 API 读取（替代写死的 seedDevices）
+- **实验完成自动画图**：Orchestrator 在实验 completed 后自动调 plot_chart 生成漏失量曲线，结果摘要 + 图表 base64 存入 `experiments.result` 字段
+- **数据丰富**：漏失量 7 个关键点线性插值成 30 点（平滑曲线），升温过程记录温度起止点
+- **实验记录联动**：实验完成后结果可经 API 查询，前端实验中心展示曲线图 + 摘要
+
 ## [0.17.0] - 2026-08-13
 
 ### Added

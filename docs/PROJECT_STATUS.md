@@ -1,7 +1,7 @@
-# OilChem Agent 项目状态报告 (v0.17.0)
+# OilChem Agent 项目状态报告 (v1.0.0)
 
-> 更新：2026-08-13
-> 基于全部源码逐文件阅读，不含推测。v0.17.0 变更：Agent 工具调用迁移到原生 function calling。
+> 更新：2026-08-14
+> 基于全部源码逐文件阅读，不含推测。v1.0.0 变更：实验域完整闭环（M1-M7），演示版自动化实验主线打通。
 
 ---
 
@@ -35,7 +35,7 @@ Agent 内部管线:
                  LLMClient                    ToolManager
                 (重试+退避)                (@register_tool 装饰器)
                      │                            │
-              OpenAIProvider              19个已注册工具
+              OpenAIProvider              24个已注册工具
               OllamaProvider
 ```
 
@@ -211,7 +211,7 @@ Agent 内部管线:
 
 ---
 
-## 四、已注册工具总览 (19个)
+## 四、已注册工具总览 (24个)
 
 | 分类 | 工具 | 状态 |
 |---|---|---|
@@ -262,17 +262,23 @@ Agent 内部管线:
 
 | 位置 | 版本号 |
 |---|---|
-| `backend/pyproject.toml` | 0.17.0 |
-| `backend/.env` (APP_VERSION) | 0.17.0 |
-| `backend/.env.example` | 0.17.0 |
-| `backend/app/core/config.py` (default) | 0.17.0 |
-| `backend/app/core/constants.py` | 0.17.0 |
-| `frontend/package.json` | 0.17.0 |
-| `frontend/src/App.tsx` | v0.17.0 |
-| `frontend/src/components/Sidebar.tsx` | v0.17.0 |
-| `docs/api.md` | 0.17.0 |
+| `backend/pyproject.toml` | 1.0.0 |
+| `backend/.env` (APP_VERSION) | 1.0.0 |
+| `backend/.env.example` | 1.0.0 |
+| `backend/app/core/config.py` (default) | 1.0.0 |
+| `backend/app/core/constants.py` | 1.0.0 |
+| `frontend/package.json` | 1.0.0 |
+| `frontend/src/App.tsx` | v1.0.0 |
+| `frontend/src/components/Sidebar.tsx` | v1.0.0 |
+| `docs/api.md` | 1.0.0 |
 
-## 八、v0.17.0 变更记录
+## 八、v1.0.0 变更记录
+
+1. **实验域完整闭环（M1-M7）**：新增 6 表 + 扩 2 表 + Alembic 003；`DeviceDriver` 抽象 + `MockDriver` 剧本引擎 + `DriverRegistry`；`Orchestrator` 状态机 + 主循环 + 异常恢复；12 个实验域 REST 端点 + 5 个实验域 Agent 工具；`ExperimentAudit` 审计；前端「实验中心」Tab
+2. **演示主场景**：HTHP 高温高压失水仪方案（升温→恒温→测漏失量，漏失量按 7 点曲线产出）
+3. **工具数 19 → 24**，版本号跳跃至 1.0.0
+
+## 九、v0.17.0 变更记录
 
 1. **Agent 工具调用迁移到原生 function calling**：模型输出结构化 tool_calls，工具结果 role="tool" 回传，替代旧的"手写 JSON 计划"链路
 2. **`ToolManager.list_tools_schema()` + `_normalize_schema()`**：统一规范化工具参数为标准 JSON Schema（修复 14 个工具扁平格式导致 400 的 bug）

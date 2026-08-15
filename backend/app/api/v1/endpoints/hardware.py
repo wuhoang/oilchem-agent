@@ -106,15 +106,33 @@ def _refresh_metrics() -> None:
 
 @router.get("/hardware/devices")
 async def list_devices(refresh: bool = True) -> dict:
-    """列出所有硬件设备。"""
-    if refresh:
-        _refresh_metrics()
-    return {"devices": _DEVICES}
+    """列出所有硬件设备（统一设备源：DriverRegistry）。"""
+    try:
+        from app.services.orchestrator import get_orchestrator
+
+        devices = await get_orchestrator()._drivers.get_device_info()
+        return {"devices": devices}
+    except Exception as exc:
+        # 降级：返回旧的写死设备
+        logger = __import__("loguru").logger
+        logger.bind(component="hardware").warning("统一设备源读取失败，降级为旧数据: {}", exc)
+        if refresh:
+            _refresh_metrics()
+        return {"devices": _DEVICES}
 
 
 @router.get("/hardware/devices/{device_id}")
 async def get_device(device_id: str) -> dict:
     """获取单个设备详情。"""
+    try:
+        from app.services.orchestrator import get_orchestrator
+
+        devices = await get_orchestrator()._drivers.get_device_info()
+        for d in devices:
+            if d["id"] == device_id:
+                return {"device": d}
+    except Exception:
+        pass
     _refresh_metrics()
     for d in _DEVICES:
         if d["id"] == device_id:

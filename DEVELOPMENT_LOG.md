@@ -6,6 +6,64 @@
 
 ---
 
+## [1.0.0] — 2026-08-14
+
+### Added
+
+- **实验域完整闭环（跨越式升级，M1-M7 全打通）**
+
+  按 `docs/system_design.md` 顶层设计 + `docs/detailed_design.md` 详细设计落地，实现"选方案 → 一键开始实验 → 设备逐步执行 → 实时数据 → 全程追溯"的演示版自动化实验主线。
+
+  **M1 数据模型**（`models/tables.py` + Alembic 003）
+  - 新增 6 表：`experimenters`（实验员）、`protocols`（方案）、`protocol_steps`（步骤模板）、`materials`（物料主数据）、`experiment_steps`（步骤执行实例）、`measurements`（测量数据点）
+  - 扩表：`experiments` 加 `operator_id`/`protocol_id`/`sample_code`；`samples` 加 `material_id`
+  - 新增 `experiment_audits` 审计表
+  - 种子数据真实化：HTHP 高温高压失水仪方案（PROTO-001：升温→恒温→测漏失量）
+
+  **M3 设备驱动层**（`app/hardware/drivers/`）
+  - `base.py`：`DeviceDriver` 抽象接口 + `StepResult`/`TelemetryPoint`/`DeviceStatus`
+  - `mock.py`：`MockDriver` 剧本引擎——受控升温（按爬坡速率）、恒温计时、漏失量曲线（剧本曲线推进）
+  - `registry.py`：`DriverRegistry` 设备占用管理（冲突抛 BusyError）
+
+  **M2 编排引擎**（`app/services/orchestrator.py`）
+  - 实验状态机：草稿→待执行→执行中→完成/异常/中止
+  - 步骤展开：start 时读 protocol_steps 实例化为 experiment_steps
+  - 主循环：逐步骤执行、设备占用、异常冻结、measurement_count 判据采多点
+  - 异常恢复：retry_step/skip_step/abort，现场不丢失
+  - 审计：create/status/step_succeed/step_fail 事件落库
+
+  **M5 交互层**
+  - `experiments.py` 端点：GET/POST protocols、experiments CRUD、progress、measurements、dashboard
+  - `experiment_tools.py`：5 个实验域 Agent 工具（list_protocols/create_experiment/start_experiment/query_progress/query_result）
+
+  **M6 数据采集**：measure 步骤按 complete_criteria（measurement_count）循环采 N 点，写 measurements
+
+  **M7 审计追溯**：`ExperimentAudit` + Orchestrator 关键动作审计
+
+  **前端「实验中心」**（`ExperimentCenter.tsx`）
+  - 三视角合一：方案库（左）/ 实验列表+看板统计（中）/ 实验详情+数据（右）
+  - 一键开始实验、3 秒轮询进度、测量数据展示
+
+### Fixed
+
+- Alembic 003 迁移在 fresh 部署下 `ALTER TABLE experiments` 报 no such table：001 未建 experiments/samples/devices（历史上由 create_all 补建），003 改为先幂等补建基础表再 alter
+- measure 步骤只采 1 个点：measurement_count 判据未实现，改为 Orchestrator 层循环采 N 点
+- 漏失量全 0：MockDriver 加剧本曲线机制，HTHP 漏失量按 7 点曲线递增产出
+
+### Changed
+
+- 版本号跳跃 0.17.0 → 1.0.0（演示版主链路闭环）
+- 工具总数 19 → 24（新增 5 个实验域工具）
+
+### 验证
+
+- 端到端：创建实验 → 启动 → 升温→恒温→测量 → 状态"已完成"，7 个漏失量数据点正确（2.5→12.8 ml）✅
+- 审计事件 6 条（create/status ×2/step_succeed ×3）✅
+- pytest 2 个 smoke test 通过 ✅
+- 前端 `npm run build` 成功（372KB）✅
+
+---
+
 ## [0.17.0] — 2026-08-13
 
 ### Added

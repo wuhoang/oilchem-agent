@@ -2,7 +2,7 @@
 
 > 石油化工智能实验室 Agent 平台 —— 连接「人 · 硬件 · 软件 · 网页」的中间层。
 
-![version](https://img.shields.io/badge/version-0.17.0-blue)
+![version](https://img.shields.io/badge/version-1.0.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![python](https://img.shields.io/badge/Python-3.12-blue)
 ![react](https://img.shields.io/badge/React-18-blue)

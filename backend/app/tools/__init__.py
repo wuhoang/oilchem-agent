@@ -20,6 +20,7 @@ import app.tools.builtin.hardware_tools  # noqa: F401
 import app.tools.builtin.chart_tools  # noqa: F401
 import app.tools.builtin.web_tools  # noqa: F401
 import app.tools.builtin.office_tools  # noqa: F401
+import app.tools.builtin.experiment_tools  # noqa: F401
 
 __all__ = [
     "BaseTool",
