@@ -74,6 +74,10 @@ class DeviceDriver(ABC):
     async def cancel(self) -> None: ...
 
     @abstractmethod
+    async def send_command(self, command: str, params: dict | None = None) -> dict:
+        """下发控制指令，返回结果 dict（含 device_id/command/status/message）。"""
+
+    @abstractmethod
     async def reset(self) -> None:
         """复位设备到初始状态（指标回初始值、曲线索引清零、状态回 IDLE）。"""
 

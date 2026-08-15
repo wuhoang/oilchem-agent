@@ -79,6 +79,16 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             "Failed to start hardware collector: {}", exc
         )
 
+    # 恢复未完成的实验（重启前 status 为 running/pending 的实验）
+    try:
+        from app.services.orchestrator import get_orchestrator
+
+        await get_orchestrator().recover()
+    except Exception as exc:
+        logger.bind(component="app").error(
+            "Failed to recover experiments: {}", exc
+        )
+
     yield
 
     # 关闭硬件遥测采集器

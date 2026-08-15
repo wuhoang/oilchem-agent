@@ -149,6 +149,60 @@ class Orchestrator:
             "实验中止: id={}", experiment_id
         )
 
+    async def recover(self) -> int:
+        """启动时恢复未完成的实验（重启前 status 为 running/pending）。
+
+        进程重启后 _tasks 丢失，但实验状态留在数据库；此方法把卡在
+        running 的步骤重置为 pending，并重新启动后台主循环。
+
+        Returns
+        -------
+        int
+            恢复的实验数量。
+        """
+        from app.database.session import get_session_factory
+        from app.models.tables import Experiment, ExperimentStep
+
+        factory = get_session_factory()
+        async with factory() as session:
+            result = await session.execute(
+                select(Experiment).where(
+                    Experiment.status.in_([self.STATUS_RUNNING, self.STATUS_READY])
+                )
+            )
+            experiments = result.scalars().all()
+
+        recovered = 0
+        for exp in experiments:
+            if exp.id in self._tasks:
+                continue
+            # 重置卡在 running 的步骤为 pending（进程中断时可能残留）
+            async with factory() as session:
+                result = await session.execute(
+                    select(ExperimentStep).where(
+                        ExperimentStep.experiment_id == exp.id,
+                        ExperimentStep.status == "running",
+                    )
+                )
+                for step in result.scalars().all():
+                    step.status = "pending"
+                    step.finished_at = None
+                await session.commit()
+
+            # 重启主循环
+            task = asyncio.create_task(self._run_loop(exp.id))
+            self._tasks[exp.id] = task
+            recovered += 1
+            logger.bind(component="orchestrator").info(
+                "恢复未完成实验: id={}, status={}", exp.id, exp.status
+            )
+
+        if recovered:
+            logger.bind(component="orchestrator").info(
+                "已恢复 {} 个未完成实验", recovered
+            )
+        return recovered
+
     # -- 查询 ---------------------------------------------------------------
 
     async def get_progress(self, experiment_id: str) -> dict[str, Any]:

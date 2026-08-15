@@ -377,11 +377,12 @@ SEED_SAMPLES: list[dict] = [
 ]
 
 SEED_DEVICES: list[dict] = [
-    {"id": "R-101", "name": "加氢反应器", "model": "HC-500", "status": "在线", "last_maintain": "2026-07-15"},
-    {"id": "GC-2030", "name": "气相色谱仪", "model": "GC-2030", "status": "在线", "last_maintain": "2026-08-01"},
-    {"id": "XS205", "name": "分析天平", "model": "XS205", "status": "在线", "last_maintain": "2026-06-20"},
-    {"id": "FE28", "name": "pH计", "model": "FE28", "status": "在线", "last_maintain": "2026-08-05"},
-    {"id": "RP-100", "name": "蠕动泵", "model": "RP-100", "status": "离线", "last_maintain": "2026-05-10"},
+    {"id": "HTHP-01", "name": "高温高压失水仪", "model": "GGS42-2A", "status": "在线", "last_maintain": "2026-08-01"},
+    {"id": "HTHP-02", "name": "高温高压失水仪", "model": "GGS42-2A", "status": "在线", "last_maintain": "2026-08-01"},
+    {"id": "Rheo-01", "name": "六速旋转粘度计", "model": "ZNN-D6", "status": "在线", "last_maintain": "2026-07-15"},
+    {"id": "Rheo-02", "name": "六速旋转粘度计", "model": "ZNN-D6", "status": "在线", "last_maintain": "2026-07-15"},
+    {"id": "Thick-01", "name": "稠化仪", "model": "OWC-2000D", "status": "在线", "last_maintain": "2026-06-20"},
+    {"id": "Thick-02", "name": "稠化仪", "model": "OWC-2000D", "status": "在线", "last_maintain": "2026-06-20"},
 ]
 
 

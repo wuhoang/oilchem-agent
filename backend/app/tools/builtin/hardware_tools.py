@@ -214,7 +214,7 @@ class SendHardwareCommandTool(BaseTool):
         },
         "metric_name": {
             "type": "string",
-            "description": "指标名（可选）。如 温度、压力、液位、pH、流速。留空返回该设备所有指标",
+            "description": "指标名（可选）。如 温度、漏失量、转读数、稠化时间。留空返回该设备所有指标",
         },
         "start_time": {
             "type": "string",
