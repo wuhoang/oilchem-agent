@@ -7,7 +7,7 @@
  * - 工作台：选择方案 → 一键开始实验 → 查看进度 + 数据
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchProtocols,
   fetchExperiments,
@@ -118,31 +118,43 @@ export function ExperimentCenter() {
     }
   }, [selectedExperiment]);
 
+  // 选中实验 ID 的 ref（供 SSE 回调读取最新值，避免选中切换时重连事件流）
+  const selectedExperimentRef = useRef(selectedExperiment);
+  useEffect(() => {
+    selectedExperimentRef.current = selectedExperiment;
+  }, [selectedExperiment]);
+
+  // 选中实验变化 → 拉取详情
   useEffect(() => {
     if (selectedExperiment) {
       refreshDetail();
-      // SSE 订阅实验事件，实时更新（替换轮询）
-      const token = getToken();
-      const es = new EventSource(
-        token
-          ? `/api/v1/experiments/events?token=${encodeURIComponent(token)}`
-          : "/api/v1/experiments/events",
-      );
-      es.onmessage = (e) => {
-        try {
-          const ev = JSON.parse(e.data);
-          if (ev.type === "experiment_status" || ev.type === "step_status" || ev.type === "measurement") {
-            if (ev.experiment_id === selectedExperiment) {
-              refreshDetail();
-            }
-          }
-        } catch {
-          // 忽略非 JSON
-        }
-      };
-      return () => es.close();
     }
   }, [selectedExperiment, refreshDetail]);
+
+  // 挂载即订阅 SSE：聊天面板等任何入口发起的实验都会实时出现在列表里
+  useEffect(() => {
+    const token = getToken();
+    const es = new EventSource(
+      token
+        ? `/api/v1/experiments/events?token=${encodeURIComponent(token)}`
+        : "/api/v1/experiments/events",
+    );
+    es.onmessage = (e) => {
+      try {
+        const ev = JSON.parse(e.data);
+        if (ev.type === "experiment_status") {
+          // 状态变化（创建/启动/完成/审核等）→ 刷新列表与看板统计
+          loadAll();
+        }
+        if (ev.experiment_id === selectedExperimentRef.current) {
+          refreshDetail();
+        }
+      } catch {
+        // 忽略非 JSON
+      }
+    };
+    return () => es.close();
+  }, [loadAll, refreshDetail]);
 
   const handleCreateAndStart = async () => {
     if (!selectedProtocol) {

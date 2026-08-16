@@ -5,6 +5,12 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-08-16
+
+### Fixed
+
+- **聊天发起的实验不实时出现在实验中心**：实验中心原只在选中实验时才订阅 SSE，聊天面板等入口发起的实验要手动刷新才能看到（后端实际已成功执行）；改为挂载即订阅，收到 experiment_status 事件自动刷新列表与看板统计，选中实验的事件同步刷新详情
+
 ## [2.0.0] - 2026-08-16
 
 ### Added

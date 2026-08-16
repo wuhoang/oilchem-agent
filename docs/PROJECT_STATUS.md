@@ -1,6 +1,7 @@
-# OilChem Agent 项目状态报告 (v2.0.0)
+# OilChem Agent 项目状态报告 (v2.0.1)
 
 > 更新：2026-08-16
+> v2.0.1 变更：修复聊天发起的实验不实时出现在实验中心（实验中心挂载即订阅 SSE，状态事件自动刷新列表与统计）。
 > v2.0.0 变更：前端三栏布局（NavRail 窄导航 + 功能区 + 常驻可折叠 ChatPanel）；25 个工具按 category 打标，聊天请求按页面 context 路由工具子集；系统提示词按上下文裁剪。
 > v1.3.3 变更：修复聊天主链路崩溃（提示词 format 大括号冲突）、审核人默认值 422、中止按钮无状态限制、start 重复展开步骤、retry/skip 端点 500 五类缺陷。
 > v1.3.0 变更：用户认证（JWT 登录 + 全量鉴权开关）、RBAC 接入（操作员/审核人/管理员）、审核人联动账号、前端登录页、认证测试 7 例。
@@ -290,15 +291,15 @@ Agent 内部管线:
 
 | 位置 | 版本号 |
 |---|---|
-| `backend/pyproject.toml` | 2.0.0 |
-| `backend/.env` (APP_VERSION) | 2.0.0 |
-| `backend/.env.example` | 2.0.0 |
-| `backend/app/core/config.py` (default) | 2.0.0 |
-| `backend/app/core/constants.py` | 2.0.0 |
-| `frontend/package.json` | 2.0.0 |
-| `frontend/package-lock.json` | 2.0.0 |
-| `frontend/src/App.tsx` | v2.0.0 |
-| `docs/api.md` | 2.0.0 |
+| `backend/pyproject.toml` | 2.0.1 |
+| `backend/.env` (APP_VERSION) | 2.0.1 |
+| `backend/.env.example` | 2.0.1 |
+| `backend/app/core/config.py` (default) | 2.0.1 |
+| `backend/app/core/constants.py` | 2.0.1 |
+| `frontend/package.json` | 2.0.1 |
+| `frontend/package-lock.json` | 2.0.1 |
+| `frontend/src/App.tsx` | v2.0.1 |
+| `docs/api.md` | 2.0.1 |
 
 ## 八、v1.3.2 变更记录
 

@@ -6,6 +6,19 @@
 
 ---
 
+## [2.0.1] — 2026-08-16
+
+### Fixed
+
+- **聊天发起的实验不实时出现在实验中心**
+  - 现象：在常驻聊天面板让 Agent 开始高温高压失水实验，工具调用成功（日志/DB 确认实验真实创建并跑完），但实验中心列表看不到，需手动刷新或切换 Tab 重新挂载
+  - 根因：`ExperimentCenter.tsx` 的 SSE 订阅嵌套在 `if (selectedExperiment)` 内，未选中实验时无订阅；列表与统计只在挂载时拉取一次
+  - 修复：SSE 改为挂载即订阅（新增 `selectedExperimentRef` 供回调读最新选中值，避免切换选中时重连事件流）；`experiment_status` 事件触发 `loadAll()` 刷新列表与看板，事件属于选中实验时 `refreshDetail()`；选中实验变化单独一个 effect 拉详情
+
+### Changed
+
+- 版本号 2.0.0 → 2.0.1
+
 ## [2.0.0] — 2026-08-16
 
 ### Added
