@@ -38,7 +38,9 @@ class Orchestrator:
     STATUS_DRAFT = "草稿"
     STATUS_READY = "待执行"  # 设计预留，当前流程未启用（create→草稿，start→执行中）
     STATUS_RUNNING = "执行中"
-    STATUS_COMPLETED = "已完成"
+    STATUS_PENDING_REVIEW = "待审核"  # 执行完成、报告生成后，等待实验员审核
+    STATUS_COMPLETED = "已完成"  # 审核通过后的最终归档状态
+    STATUS_REJECTED = "已驳回"  # 审核驳回
     STATUS_FAILED = "异常"
     STATUS_ABORTED = "中止"
 
@@ -258,6 +260,52 @@ class Orchestrator:
             for m in measurements
         ]
 
+    async def approve(self, experiment_id: str, reviewer_id: str, reviewer_name: str, comment: str = "") -> None:
+        """审核通过：实验从「待审核」转为「已完成」，记录审核人 ID/姓名与意见。"""
+        import datetime as _dt
+
+        from app.database.session import get_session_factory
+        from app.models.tables import Experiment
+
+        factory = get_session_factory()
+        async with factory() as session:
+            exp = await session.get(Experiment, experiment_id)
+            if exp is None:
+                raise KeyError(f"实验不存在: {experiment_id}")
+            if exp.status != self.STATUS_PENDING_REVIEW:
+                raise ValueError(f"实验当前状态为「{exp.status}」，不能审核通过")
+            exp.status = self.STATUS_COMPLETED
+            exp.reviewed_by = reviewer_name
+            exp.reviewed_by_id = reviewer_id
+            exp.reviewed_at = _dt.datetime.utcnow()
+            exp.review_comment = comment
+            await session.commit()
+
+        await self._audit(experiment_id, "approved", f"reviewer={reviewer_name}({reviewer_id}) comment={comment}")
+
+    async def reject(self, experiment_id: str, reviewer_id: str, reviewer_name: str, comment: str = "") -> None:
+        """审核驳回：实验转「已驳回」，记录审核人 ID/姓名与意见（可重新生成报告后再次审核）。"""
+        import datetime as _dt
+
+        from app.database.session import get_session_factory
+        from app.models.tables import Experiment
+
+        factory = get_session_factory()
+        async with factory() as session:
+            exp = await session.get(Experiment, experiment_id)
+            if exp is None:
+                raise KeyError(f"实验不存在: {experiment_id}")
+            if exp.status != self.STATUS_PENDING_REVIEW:
+                raise ValueError(f"实验当前状态为「{exp.status}」，不能审核驳回")
+            exp.status = self.STATUS_REJECTED
+            exp.reviewed_by = reviewer_name
+            exp.reviewed_by_id = reviewer_id
+            exp.reviewed_at = _dt.datetime.utcnow()
+            exp.review_comment = comment
+            await session.commit()
+
+        await self._audit(experiment_id, "rejected", f"reviewer={reviewer_name}({reviewer_id}) comment={comment}")
+
     # -- 内部 ---------------------------------------------------------------
 
     async def _reset_devices(self, experiment_id: str) -> None:
@@ -339,12 +387,12 @@ class Orchestrator:
                     step = result.scalars().first()
 
                     if step is None:
-                        # 所有步骤完成
-                        await self._set_status(experiment_id, self.STATUS_COMPLETED)
+                        # 所有步骤完成 → 先出结果和报告，再进入待审核（避免「已完成但报告缺失」）
                         await self._generate_result(experiment_id)
                         await self._generate_report(experiment_id)
+                        await self._set_status(experiment_id, self.STATUS_PENDING_REVIEW)
                         logger.bind(component="orchestrator").info(
-                            "实验完成: id={}", experiment_id
+                            "实验完成（待审核）: id={}", experiment_id
                         )
                         break
 

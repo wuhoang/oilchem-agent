@@ -1,7 +1,7 @@
-# OilChem Agent 项目状态报告 (v1.1.0)
+# OilChem Agent 项目状态报告 (v1.2.0)
 
 > 更新：2026-08-15
-> 基于全部源码逐文件阅读，不含推测。v1.1.0 变更：实验报告自动生成、追溯视图、油化仿真设备（DriverRegistry 统一源）、SSE 实时事件、设备复位修复。
+> 基于全部源码逐文件阅读，不含推测。v1.2.0 变更：实验审核（待审核/通过/驳回）、审核人选择接口、待审核可查看报告。
 
 ---
 
@@ -285,18 +285,25 @@ Agent 内部管线:
 
 | 位置 | 版本号 |
 |---|---|
-| `backend/pyproject.toml` | 1.1.0 |
-| `backend/.env` (APP_VERSION) | 1.1.0 |
-| `backend/.env.example` | 1.1.0 |
-| `backend/app/core/config.py` (default) | 1.1.0 |
-| `backend/app/core/constants.py` | 1.1.0 |
-| `frontend/package.json` | 1.1.0 |
-| `frontend/package-lock.json` | 1.1.0 |
-| `frontend/src/App.tsx` | v1.1.0 |
-| `frontend/src/components/Sidebar.tsx` | v1.1.0 |
-| `docs/api.md` | 1.1.0 |
+| `backend/pyproject.toml` | 1.2.0 |
+| `backend/.env` (APP_VERSION) | 1.2.0 |
+| `backend/.env.example` | 1.2.0 |
+| `backend/app/core/config.py` (default) | 1.2.0 |
+| `backend/app/core/constants.py` | 1.2.0 |
+| `frontend/package.json` | 1.2.0 |
+| `frontend/package-lock.json` | 1.2.0 |
+| `frontend/src/App.tsx` | v1.2.0 |
+| `frontend/src/components/Sidebar.tsx` | v1.2.0 |
+| `docs/api.md` | 1.2.0 |
 
-## 八、v1.1.0 变更记录
+## 八、v1.2.0 变更记录
+
+1. **实验审核**：状态机新增「待审核」「已驳回」；实验跑完生成报告后进入「待审核」，`POST /experiments/{id}/approve`（通过→已完成）/`reject`（驳回→已驳回）；`Experiment` 加 `reviewed_by`/`reviewed_by_id`/`reviewed_at`/`review_comment` 字段（Alembic 005）
+2. **审核人选择**：新增 `GET /reviewers` 端点（当前返回实验员，将来账号管理完善后改查有审核权限的账号）；前端「待审核」状态显示审核人下拉（默认当前操作员=可自审，可选他人），替代写死操作员本人
+3. **待审核可查看报告**：报告在进入「待审核」时已生成，前端「待审核」状态也显示「生成/下载报告」按钮
+4. **版本号 1.1.0 → 1.2.0**
+
+## 九、v1.1.0 变更记录
 
 1. **实验报告自动生成**：新增 `generate_experiment_report` 工具（第 25 个工具）+ `services/report_generator.py` + `GET /experiments/{id}/report` 端点
 2. **实验追溯视图**：`ExperimentAudit` 审计链路补全，实验过程可追溯
@@ -305,7 +312,7 @@ Agent 内部管线:
 5. **设备复位修复**
 6. **工具数 24 → 25**，版本号 1.0.0 → 1.1.0
 
-## 九、v1.0.0 变更记录
+## 十、v1.0.0 变更记录
 
 1. **实验域完整闭环（M1-M7）**：新增 6 表 + 扩 2 表 + Alembic 003；`DeviceDriver` 抽象 + `MockDriver` 剧本引擎 + `DriverRegistry`；`Orchestrator` 状态机 + 主循环 + 异常恢复；12 个实验域 REST 端点 + 5 个实验域 Agent 工具；`ExperimentAudit` 审计；前端「实验中心」Tab
 2. **演示主场景**：HTHP 高温高压失水仪方案（升温→恒温→测漏失量，漏失量按 7 点曲线产出）

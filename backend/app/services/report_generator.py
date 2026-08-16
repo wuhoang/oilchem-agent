@@ -204,7 +204,7 @@ def _gen_word(
             f"最终值为 {summary.get('final','')}。"
         )
     else:
-        doc.add_paragraph("实验已完成，数据见测量数据表。")
+        doc.add_paragraph("实验执行完成，数据见测量数据表。")
 
     doc.save(str(path))
 

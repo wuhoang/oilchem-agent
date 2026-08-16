@@ -12,7 +12,7 @@ Returns the application banner.
 ```json
 {
   "name": "OilChem Agent",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "status": "running"
 }
 ```
@@ -207,12 +207,15 @@ WebSocket 连接，接收文件变化事件推送。
 | POST   | `/api/v1/experiments/{id}/retry-step`     | 重试失败步骤               |
 | POST   | `/api/v1/experiments/{id}/skip-step`      | 跳过失败步骤               |
 | POST   | `/api/v1/experiments/{id}/abort`          | 中止实验                   |
+| POST   | `/api/v1/experiments/{id}/approve`        | 审核通过（待审核→已完成）  |
+| POST   | `/api/v1/experiments/{id}/reject`         | 审核驳回（待审核→已驳回）  |
 
 #### 实验员 & 看板 & 事件
 
 | Method | Path                          | Description                |
 |--------|-------------------------------|----------------------------|
 | GET    | `/api/v1/experimenters`       | 实验员列表                 |
+| GET    | `/api/v1/reviewers`           | 可选审核人列表             |
 | GET    | `/api/v1/dashboard`           | 看板聚合（设备/进度/统计） |
 | GET    | `/api/v1/experiments/events`  | SSE 实验事件流（status/step/measurement） |
 
@@ -235,4 +238,4 @@ WebSocket 连接，接收文件变化事件推送。
 
 #### `GET /api/v1/experiments/{id}`（实验详情）
 
-响应含 `experiment`（含 `result` JSON 摘要+图表、`report_path`）、`steps`（步骤执行明细）、`audits`（审计时间线）。
+响应含 `experiment`（含 `result` JSON 摘要+图表、`report_path`、审核字段 `reviewed_by`/`reviewed_by_id`/`reviewed_at`/`review_comment`）、`steps`（步骤执行明细）、`audits`（审计时间线）。

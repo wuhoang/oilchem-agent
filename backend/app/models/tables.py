@@ -165,6 +165,11 @@ class Experiment(Base):
     result: Mapped[str | None] = mapped_column(Text, nullable=True)
     # 报告目录相对路径（backend/storage/reports/{id}）
     report_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # 审核字段（审核人将来关联账号，reviewed_by_id 指向账号/实验员 ID）
+    reviewed_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reviewed_by_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    reviewed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    review_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
     )

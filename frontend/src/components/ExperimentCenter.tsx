@@ -14,10 +14,13 @@ import {
   createExperiment,
   startExperiment,
   abortExperiment,
+  approveExperiment,
+  rejectExperiment,
   fetchExperimentDetail,
   fetchExperimentMeasurements,
   fetchDashboard,
   fetchExperimenters,
+  fetchReviewers,
   fetchExperimentReport,
   type Protocol,
   type Experiment,
@@ -32,7 +35,9 @@ const STATUS_COLOR: Record<string, string> = {
   草稿: "bg-slate-100 text-slate-600",
   待执行: "bg-blue-100 text-blue-700",
   执行中: "bg-amber-100 text-amber-700",
+  待审核: "bg-violet-100 text-violet-700",
   已完成: "bg-emerald-100 text-emerald-700",
+  已驳回: "bg-orange-100 text-orange-700",
   异常: "bg-red-100 text-red-700",
   中止: "bg-slate-200 text-slate-600",
 };
@@ -41,9 +46,11 @@ export function ExperimentCenter() {
   const [protocols, setProtocols] = useState<Protocol[]>([]);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [experimenters, setExperimenters] = useState<Experimenter[]>([]);
+  const [reviewers, setReviewers] = useState<Experimenter[]>([]);
   const [selectedProtocol, setSelectedProtocol] = useState<string>("");
   const [selectedExperiment, setSelectedExperiment] = useState<string>("");
   const [selectedOperator, setSelectedOperator] = useState<string>("");
+  const [selectedReviewer, setSelectedReviewer] = useState<string>("");
   const [sampleCode, setSampleCode] = useState<string>("");
   const [detail, setDetail] = useState<{ experiment: Experiment; steps: ExperimentStep[]; audits?: AuditEvent[] } | null>(null);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
@@ -54,11 +61,12 @@ export function ExperimentCenter() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [p, e, d, ex] = await Promise.all([fetchProtocols(), fetchExperiments(), fetchDashboard(), fetchExperimenters()]);
+      const [p, e, d, ex, rv] = await Promise.all([fetchProtocols(), fetchExperiments(), fetchDashboard(), fetchExperimenters(), fetchReviewers()]);
       setProtocols(p.protocols);
       setExperiments(e.experiments);
       setStats(d);
       setExperimenters(ex.experimenters);
+      setReviewers(rv.reviewers);
       if (!selectedOperator && ex.experimenters.length > 0) {
         setSelectedOperator(ex.experimenters[0].id);
       }
@@ -170,6 +178,40 @@ export function ExperimentCenter() {
     }
   };
 
+  const reviewerId = selectedReviewer || selectedOperator;
+
+  const handleApprove = async () => {
+    if (!selectedExperiment) return;
+    if (!reviewerId) {
+      notifyError("请选择审核人");
+      return;
+    }
+    try {
+      await approveExperiment(selectedExperiment, reviewerId, "");
+      await loadAll();
+      await refreshDetail();
+    } catch (err) {
+      notifyError(String(err));
+    }
+  };
+
+  const handleReject = async () => {
+    if (!selectedExperiment) return;
+    if (!reviewerId) {
+      notifyError("请选择审核人");
+      return;
+    }
+    const comment = window.prompt("请输入驳回意见：");
+    if (comment === null) return;
+    try {
+      await rejectExperiment(selectedExperiment, reviewerId, comment);
+      await loadAll();
+      await refreshDetail();
+    } catch (err) {
+      notifyError(String(err));
+    }
+  };
+
   return (
     <div className="flex h-full w-full gap-4 p-4">
       {/* 左栏：方案库 */}
@@ -264,7 +306,35 @@ export function ExperimentCenter() {
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-slate-800">实验 {selectedExperiment}</h2>
               <div className="flex items-center gap-2">
-                {detail?.experiment?.status === "已完成" && (
+                {detail?.experiment?.status === "待审核" && (
+                  <>
+                    <label className="flex items-center gap-1 text-xs text-slate-500">
+                      审核人
+                      <select
+                        value={selectedReviewer || selectedOperator}
+                        onChange={(e) => setSelectedReviewer(e.target.value)}
+                        className="rounded-md border border-slate-200 px-2 py-1.5 text-sm text-slate-700"
+                      >
+                        {reviewers.map((rv) => (
+                          <option key={rv.id} value={rv.id}>{rv.name}（{rv.role}）</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      onClick={handleApprove}
+                      className="rounded-md border border-emerald-200 px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50"
+                    >
+                      审核通过
+                    </button>
+                    <button
+                      onClick={handleReject}
+                      className="rounded-md border border-orange-200 px-3 py-1.5 text-sm text-orange-600 hover:bg-orange-50"
+                    >
+                      审核驳回
+                    </button>
+                  </>
+                )}
+                {(detail?.experiment?.status === "待审核" || detail?.experiment?.status === "已完成") && (
                   <button
                     onClick={handleDownloadReport}
                     className="rounded-md border border-emerald-200 px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50"

@@ -5,6 +5,18 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-15
+
+### Added
+
+- **实验审核**：实验跑完生成报告后进入「待审核」（不再直接「已完成」）；`POST /experiments/{id}/approve` + `/reject` 端点，通过→归档「已完成」、驳回→「已驳回」；记录审核人 ID/姓名/时间/意见（Alembic 005 迁移加 reviewed_by / reviewed_by_id / reviewed_at / review_comment 字段）
+- **审核人选择**：新增 `GET /reviewers` 端点（当前返回实验员列表，将来账号管理完善后改查有审核权限的账号）；前端详情页「待审核」时显示审核人下拉（默认当前操作员，可选他人），替代原先写死「操作员本人」为审核人
+- **待审核可查看报告**：报告文件在进入「待审核」时已生成，前端在「待审核」状态也显示「生成/下载报告」按钮，审核人可先看报告再决定通过/驳回
+
+### Fixed
+
+- 报告结论文本「实验已完成」改为「实验执行完成」，与「待审核」状态语义一致
+
 ## [1.1.0] - 2026-08-15
 
 ### Added

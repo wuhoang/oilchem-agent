@@ -364,6 +364,10 @@ export interface Experiment {
   sample_code?: string;
   result?: string;
   report_path?: string;
+  reviewed_by?: string;
+  reviewed_by_id?: string;
+  reviewed_at?: string;
+  review_comment?: string;
 }
 
 export interface ExperimentStep {
@@ -428,6 +432,20 @@ export async function abortExperiment(experimentId: string): Promise<{ success: 
   return request(`/experiments/${encodeURIComponent(experimentId)}/abort`, { method: "POST" });
 }
 
+export async function approveExperiment(experimentId: string, reviewerId: string, comment: string): Promise<{ success: boolean; message: string }> {
+  return request(`/experiments/${encodeURIComponent(experimentId)}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ reviewer_id: reviewerId, comment }),
+  });
+}
+
+export async function rejectExperiment(experimentId: string, reviewerId: string, comment: string): Promise<{ success: boolean; message: string }> {
+  return request(`/experiments/${encodeURIComponent(experimentId)}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reviewer_id: reviewerId, comment }),
+  });
+}
+
 export async function fetchExperimentDetail(experimentId: string): Promise<ExperimentDetail> {
   return request<ExperimentDetail>(`/experiments/${encodeURIComponent(experimentId)}`);
 }
@@ -465,6 +483,10 @@ export async function fetchHardwareDevices(): Promise<{ devices: HardwareDevice[
 
 export async function fetchExperimenters(): Promise<{ experimenters: Experimenter[] }> {
   return request<{ experimenters: Experimenter[] }>("/experimenters");
+}
+
+export async function fetchReviewers(): Promise<{ reviewers: Experimenter[] }> {
+  return request<{ reviewers: Experimenter[] }>("/reviewers");
 }
 
 export async function fetchExperimentReport(experimentId: string): Promise<{ success: boolean; word_path: string; excel_path: string }> {

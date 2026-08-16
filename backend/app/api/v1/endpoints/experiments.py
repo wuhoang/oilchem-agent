@@ -49,6 +49,11 @@ class InterveneRequest(BaseModel):
     step_order: int = Field(..., description="步骤序号")
 
 
+class ReviewRequest(BaseModel):
+    reviewer_id: str = Field(..., description="审核人 ID（实验员，将来为账号 ID）")
+    comment: str = Field(default="", description="审核意见")
+
+
 # ---------------------------------------------------------------------------
 # 方案库
 # ---------------------------------------------------------------------------
@@ -193,6 +198,44 @@ async def abort_experiment(experiment_id: str) -> dict:
     return {"success": True, "message": f"实验 {experiment_id} 已中止"}
 
 
+@router.post("/experiments/{experiment_id}/approve")
+async def approve_experiment(experiment_id: str, req: ReviewRequest, db: AsyncSession = Depends(get_db)) -> dict:
+    """审核通过实验。"""
+    from app.services.orchestrator import get_orchestrator
+
+    reviewer = await db.get(Experimenter, req.reviewer_id)
+    if reviewer is None:
+        raise HTTPException(status_code=404, detail=f"审核人不存在: {req.reviewer_id}")
+
+    orch = get_orchestrator()
+    try:
+        await orch.approve(experiment_id, reviewer.id, reviewer.name, req.comment)
+        return {"success": True, "message": f"实验 {experiment_id} 已审核通过"}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/experiments/{experiment_id}/reject")
+async def reject_experiment(experiment_id: str, req: ReviewRequest, db: AsyncSession = Depends(get_db)) -> dict:
+    """审核驳回实验。"""
+    from app.services.orchestrator import get_orchestrator
+
+    reviewer = await db.get(Experimenter, req.reviewer_id)
+    if reviewer is None:
+        raise HTTPException(status_code=404, detail=f"审核人不存在: {req.reviewer_id}")
+
+    orch = get_orchestrator()
+    try:
+        await orch.reject(experiment_id, reviewer.id, reviewer.name, req.comment)
+        return {"success": True, "message": f"实验 {experiment_id} 已驳回"}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.get("/experiments/events")
 async def experiment_events() -> StreamingResponse:
     """实验事件 SSE 流。推送 experiment_status/step_status/measurement 事件。
@@ -257,6 +300,10 @@ async def get_experiment(experiment_id: str, db: AsyncSession = Depends(get_db))
             "created_at": exp.created_at.isoformat() if exp.created_at else None,
             "result": exp.result,
             "report_path": exp.report_path,
+            "reviewed_by": exp.reviewed_by,
+            "reviewed_by_id": exp.reviewed_by_id,
+            "reviewed_at": exp.reviewed_at.isoformat() if exp.reviewed_at else None,
+            "review_comment": exp.review_comment,
         },
         "steps": [
             {
@@ -324,6 +371,23 @@ async def list_experimenters(db: AsyncSession = Depends(get_db)) -> dict:
         "experimenters": [
             {"id": e.id, "name": e.name, "role": e.role, "department": e.department}
             for e in experimenters
+        ]
+    }
+
+
+@router.get("/reviewers")
+async def list_reviewers(db: AsyncSession = Depends(get_db)) -> dict:
+    """列出可选审核人。
+
+    当前审核人与实验员共用同一批人（账号管理尚未接入）；
+    账号管理完善后，此端点应改为查询具有审核权限的账号。
+    """
+    result = await db.execute(select(Experimenter).order_by(Experimenter.id.asc()))
+    reviewers = result.scalars().all()
+    return {
+        "reviewers": [
+            {"id": e.id, "name": e.name, "role": e.role, "department": e.department}
+            for e in reviewers
         ]
     }
 
