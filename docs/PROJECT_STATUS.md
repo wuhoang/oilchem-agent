@@ -1,4 +1,4 @@
-# OilChem Agent 项目状态报告 (v1.3.0)
+# OilChem Agent 项目状态报告 (v1.3.1)
 
 > 更新：2026-08-16
 > v1.3.0 变更：用户认证（JWT 登录 + 全量鉴权开关）、RBAC 接入（操作员/审核人/管理员）、审核人联动账号、前端登录页、认证测试 7 例。
@@ -286,16 +286,16 @@ Agent 内部管线:
 
 | 位置 | 版本号 |
 |---|---|
-| `backend/pyproject.toml` | 1.3.0 |
-| `backend/.env` (APP_VERSION) | 1.3.0 |
-| `backend/.env.example` | 1.3.0 |
-| `backend/app/core/config.py` (default) | 1.3.0 |
-| `backend/app/core/constants.py` | 1.3.0 |
-| `frontend/package.json` | 1.3.0 |
-| `frontend/package-lock.json` | 1.3.0 |
-| `frontend/src/App.tsx` | v1.3.0 |
-| `frontend/src/components/Sidebar.tsx` | v1.3.0 |
-| `docs/api.md` | 1.3.0 |
+| `backend/pyproject.toml` | 1.3.1 |
+| `backend/.env` (APP_VERSION) | 1.3.1 |
+| `backend/.env.example` | 1.3.1 |
+| `backend/app/core/config.py` (default) | 1.3.1 |
+| `backend/app/core/constants.py` | 1.3.1 |
+| `frontend/package.json` | 1.3.1 |
+| `frontend/package-lock.json` | 1.3.1 |
+| `frontend/src/App.tsx` | v1.3.1 |
+| `frontend/src/components/Sidebar.tsx` | v1.3.1 |
+| `docs/api.md` | 1.3.1 |
 
 ## 八、v1.3.0 变更记录
 

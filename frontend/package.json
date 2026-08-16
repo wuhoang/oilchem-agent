@@ -1,7 +1,7 @@
 {
   "name": "oilchem-agent-frontend",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.3.1",
   "type": "module",
   "description": "OilChem Agent frontend (Step 0 bootstrap).",
   "scripts": {

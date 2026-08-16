@@ -96,7 +96,7 @@ These guidelines are working if: fewer unnecessary changes in diffs, fewer rewri
 
 **OilChem Agent** — 石油化工/化学实验室 AI 助手，定位为「人-硬件-软件-网页」的中间层。
 
-- 当前版本：1.3.0，在 `develop` 分支开发
+- 当前版本：1.3.1，在 `develop` 分支开发
 - 技术栈：Python 3.12 + FastAPI + SQLAlchemy (aiosqlite) | React 18 + TypeScript + Vite + TailwindCSS
 - **实际使用的 LLM**：DeepSeek API（`deepseek-chat`，通过 OpenAI 兼容接口）。配置在 `backend/.env`，**不在代码里**
 - 代码层同时预留了本地 Ollama Provider（可用 `qwen2.5` 等），但**当前默认和实际运行都是 DeepSeek**，不要假设系统用本地小模型
@@ -171,7 +171,14 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 ## 项目规则
 
 ### 版本号
-改代码涉及版本变化时，统一更新这 9 处（注：`backend/.env` 被 gitignore，仅本地生效，改它是为了让本地运行时版本显示一致）：
+
+语义化版本 `MAJOR.MINOR.PATCH`，按改动性质决定 bump 哪一位：
+
+- **MAJOR（第一位）**：不兼容的破坏性变更（改公开 API 签名、删除端点、数据模型不兼容迁移）。当前阶段极少触发。
+- **MINOR（第二位）**：向后兼容的新功能（新增端点 / 工具 / 模块 / 前端页面）。
+- **PATCH（第三位）**：向后兼容的问题修复与清理（bug 修复、死代码删除、文档修正、消警告、重构）。
+
+每次 bump 后，统一更新这 9 处（注：`backend/.env` 被 gitignore，仅本地生效，改它是为了让本地运行时版本显示一致）：
 - `backend/pyproject.toml`、`backend/.env` (APP_VERSION)
 - `backend/app/core/config.py`、`backend/app/core/constants.py`
 - `frontend/package.json`、`frontend/package-lock.json`
