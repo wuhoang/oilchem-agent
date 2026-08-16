@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +108,8 @@ class StreamChunk(BaseModel):
 
 class ProviderConfig(BaseModel):
     """LLM 提供商配置。"""
+
+    model_config = ConfigDict(protected_namespaces=())
 
     provider: Literal["openai", "ollama", "qianwen"] = Field(
         default="openai", description="提供商类型"

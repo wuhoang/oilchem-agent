@@ -158,7 +158,7 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 | 实验域 API | `backend/app/api/v1/endpoints/experiments.py`（REST + SSE） |
 | Agent 主循环 | `backend/app/agent/manager.py`（function calling，`max_iterations=8`） |
 | 前端实验中心 | `frontend/src/components/ExperimentCenter.tsx`（三视图 + EventSource SSE） |
-| 设备仿真数据 | `backend/app/hardware/hardware_simulation_data.json`（6 台油化仿真设备剧本曲线） |
+| 设备仿真数据 | `hardware_info/hardware_simulation_data.json`（6 台油化仿真设备剧本曲线） |
 
 ## 架构决策
 

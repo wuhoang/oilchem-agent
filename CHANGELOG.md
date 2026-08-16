@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **审核人 ID 类型对齐**：`ReviewRequest.reviewer_id` 从 str 改为 int（与 users 表主键对齐，非数字 ID 由 Pydantic 直接 422，不再 500）
 - **JWT 默认密钥加长**：`JWT_SECRET_KEY` 默认值从 23 字节加长到 48 字节，消除 PyJWT `InsecureKeyLengthWarning`
 
+### Changed
+
+- 删除 `mock.py` 死代码 `load_hthp_behavior()`（与 orchestrator 设备加载逻辑重复，全项目无引用）
+- 修正 CLAUDE.md 设备仿真数据路径（`backend/app/hardware/` → `hardware_info/`）
+- `ProviderConfig` / `LLMInfoResponse` 加 `protected_namespaces=()`，消除 Pydantic `model_name` 警告
+
 ## [1.2.0] - 2026-08-15
 
 ### Added

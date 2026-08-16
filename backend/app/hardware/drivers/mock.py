@@ -7,15 +7,13 @@ MockDriver — 演示版设备驱动（M3）。
 - measure：按剧本曲线产出测量数据点
 - 每个 tick 更新内部遥测，供 read_telemetry 拉取
 
-设备行为参数可从行为库（device behaviors）或 HTHP 仿真数据文件实例化。
+设备行为参数从行为库（device behaviors）实例化。
 """
 
 from __future__ import annotations
 
 import asyncio
 import datetime
-import json
-from pathlib import Path
 from typing import Any
 
 from loguru import logger
@@ -249,41 +247,4 @@ class MockDriver(DeviceDriver):
             self._metrics[name]["value"] = value
 
 
-def load_hthp_behavior(data_file: str | None = None) -> list[dict[str, Any]]:
-    """从 HTHP 仿真数据文件加载设备行为参数（演示主场景）。
-
-    Returns
-    -------
-    list[dict]
-        设备行为定义，可传给 MockDriver 实例化。
-    """
-    if data_file is None:
-        data_file = str(
-            Path(__file__).resolve().parents[4]
-            / "hardware_info"
-            / "hardware_simulation_data.json"
-        )
-    with open(data_file, encoding="utf-8") as f:
-        data = json.load(f)
-
-    behaviors: list[dict[str, Any]] = []
-    for device_type, devices in data.get("devices", {}).items():
-        for dev in devices:
-            metrics = []
-            for key, val in dev.get("parameters", {}).items():
-                # 只取数值型参数作为遥测指标；曲线单独处理
-                if isinstance(val, (int, float)):
-                    metrics.append({"name": key, "unit": None, "initial": val})
-            behaviors.append(
-                {
-                    "device_id": dev.get("device_id"),
-                    "model": dev.get("model"),
-                    "type": device_type,
-                    "metrics": metrics,
-                    "parameters": dev.get("parameters", {}),
-                }
-            )
-    return behaviors
-
-
-__all__ = ["MockDriver", "load_hthp_behavior"]
+__all__ = ["MockDriver"]

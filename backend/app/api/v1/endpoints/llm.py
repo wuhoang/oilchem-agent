@@ -7,7 +7,7 @@ LLM 管理端点。
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.llm import LLMClient
 
@@ -29,6 +29,8 @@ class LLMTestResponse(BaseModel):
 
 class LLMInfoResponse(BaseModel):
     """LLM 配置信息响应。"""
+
+    model_config = ConfigDict(protected_namespaces=())
 
     provider: str = Field(..., description="提供商类型")
     base_url: str = Field(..., description="API 基础 URL")

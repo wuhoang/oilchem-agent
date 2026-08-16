@@ -42,6 +42,7 @@
 - `JWT_EXPIRE_MINUTES` 默认 60 → 10080（7 天）
 - `config.py` 新增 `AUTH_ADMIN_PASSWORD` / `AUTH_OPERATOR_PASSWORD` / `AUTH_REVIEWER_PASSWORD`
 - 版本号 1.2.0 → 1.3.0
+- 清理：删除 `mock.py` 死代码 `load_hthp_behavior()`（与 orchestrator 设备加载重复）；修正 CLAUDE.md 设备仿真数据路径；`ProviderConfig`/`LLMInfoResponse` 加 `protected_namespaces=()` 消除 Pydantic 警告
 
 ## [1.2.0] — 2026-08-15
 
