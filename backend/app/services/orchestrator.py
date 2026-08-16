@@ -143,6 +143,7 @@ class Orchestrator:
         """重试失败步骤：置回 running 并重启主循环。"""
         if experiment_id in self._tasks:
             raise ValueError(f"实验 {experiment_id} 已在运行，请勿重复操作")
+        await self._ensure_exists(experiment_id)
         await self._reset_step(experiment_id, step_order)
         await self._set_status(experiment_id, self.STATUS_RUNNING)
         task = asyncio.create_task(self._run_loop(experiment_id))
@@ -152,6 +153,7 @@ class Orchestrator:
         """跳过步骤：标记 skipped，继续主循环。"""
         if experiment_id in self._tasks:
             raise ValueError(f"实验 {experiment_id} 已在运行，请勿重复操作")
+        await self._ensure_exists(experiment_id)
         await self._mark_step_skipped(experiment_id, step_order)
         await self._set_status(experiment_id, self.STATUS_RUNNING)
         task = asyncio.create_task(self._run_loop(experiment_id))
@@ -634,6 +636,17 @@ class Orchestrator:
                 await session.commit()
         await self._audit(experiment_id, "status", status)
         self._publish({"type": "experiment_status", "experiment_id": experiment_id, "status": status})
+
+    async def _ensure_exists(self, experiment_id: str) -> None:
+        """检查实验是否存在，不存在抛 KeyError。"""
+        from app.database.session import get_session_factory
+        from app.models.tables import Experiment
+
+        factory = get_session_factory()
+        async with factory() as session:
+            exp = await session.get(Experiment, experiment_id)
+            if exp is None:
+                raise KeyError(f"实验不存在: {experiment_id}")
 
     async def _generate_result(self, experiment_id: str) -> None:
         """实验完成后自动生成结果：画漏失量曲线 + 摘要，存入 experiment.result。"""

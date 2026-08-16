@@ -181,6 +181,8 @@ async def retry_step(experiment_id: str, req: InterveneRequest) -> dict:
     try:
         await orch.retry_step(experiment_id, req.step_order)
         return {"success": True, "message": f"步骤 {req.step_order} 已重试"}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -194,6 +196,8 @@ async def skip_step(experiment_id: str, req: InterveneRequest) -> dict:
     try:
         await orch.skip_step(experiment_id, req.step_order)
         return {"success": True, "message": f"步骤 {req.step_order} 已跳过"}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
