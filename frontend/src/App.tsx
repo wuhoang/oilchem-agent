@@ -219,7 +219,7 @@ function App() {
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
               服务正常
             </span>
-            <span className="hidden md:inline">v1.3.1</span>
+            <span className="hidden md:inline">v1.3.2</span>
           </div>
         </header>
 

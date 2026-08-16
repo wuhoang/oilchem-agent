@@ -5,6 +5,20 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-08-16
+
+### Fixed
+
+- **系统提示词设备表过时**：替换为实际的 6 台油化仿真设备（HTHP-01/02、Rheo-01/02、Thick-01/02），含型号和真实指标名；领域知识从石油炼制改为钻井液测试（HTHP 失水、流变性、稠化时间）
+- **编排引擎 abort 释放全部设备**：改为只释放当前实验占用的设备，不影响并发实验
+- **编排引擎 retry_step/skip_step 缺防重入**：加互斥保护，防止用户双击导致多个 `_run_loop` 并行
+- **步骤超时不执行**：用 `asyncio.wait_for()` 包裹 `_execute_step`，超时后返回失败而非永远挂着
+- **cancel 后实验卡在「执行中」**：`CancelledError` 处理器现在正确设置状态为「中止」
+
+### Added
+
+- **登录限流**：`POST /auth/login` 加内存限流（5 次/5 分钟/IP），防暴力破解，进程重启自动清零
+
 ## [1.3.1] - 2026-08-16
 
 ### Changed

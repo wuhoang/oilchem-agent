@@ -124,6 +124,8 @@ class Orchestrator:
 
     async def retry_step(self, experiment_id: str, step_order: int) -> None:
         """重试失败步骤：置回 running 并重启主循环。"""
+        if experiment_id in self._tasks:
+            raise ValueError(f"实验 {experiment_id} 已在运行，请勿重复操作")
         await self._reset_step(experiment_id, step_order)
         await self._set_status(experiment_id, self.STATUS_RUNNING)
         task = asyncio.create_task(self._run_loop(experiment_id))
@@ -131,6 +133,8 @@ class Orchestrator:
 
     async def skip_step(self, experiment_id: str, step_order: int) -> None:
         """跳过步骤：标记 skipped，继续主循环。"""
+        if experiment_id in self._tasks:
+            raise ValueError(f"实验 {experiment_id} 已在运行，请勿重复操作")
         await self._mark_step_skipped(experiment_id, step_order)
         await self._set_status(experiment_id, self.STATUS_RUNNING)
         task = asyncio.create_task(self._run_loop(experiment_id))
@@ -400,8 +404,19 @@ class Orchestrator:
                     step.started_at = datetime.datetime.utcnow()
                     await session.commit()
 
-                # 执行步骤（阻塞）
-                result_step = await self._execute_step(experiment_id, step)
+                # 执行步骤（阻塞，带超时）
+                timeout = step.timeout_s if step.timeout_s and step.timeout_s > 0 else 300
+                try:
+                    result_step = await asyncio.wait_for(
+                        self._execute_step(experiment_id, step),
+                        timeout=timeout,
+                    )
+                except asyncio.TimeoutError:
+                    result_step = StepResult(
+                        success=False,
+                        status_code="timeout",
+                        message=f"步骤超时（{timeout}s）",
+                    )
 
                 async with factory() as session:
                     step = await session.get(ExperimentStep, step.id)
@@ -439,6 +454,7 @@ class Orchestrator:
             logger.bind(component="orchestrator").info(
                 "实验主循环取消: id={}", experiment_id
             )
+            await self._set_status(experiment_id, self.STATUS_ABORTED)
         except Exception as exc:
             logger.bind(component="orchestrator").error(
                 "实验主循环异常: id={}, error={}", experiment_id, exc
@@ -742,7 +758,20 @@ class Orchestrator:
                 await session.commit()
 
     async def _release_devices(self, experiment_id: str) -> None:
-        for device_id in self._drivers.list_devices():
+        """只释放当前实验占用的设备，不影响其他实验。"""
+        from app.database.session import get_session_factory
+        from app.models.tables import ExperimentStep
+
+        factory = get_session_factory()
+        async with factory() as session:
+            result = await session.execute(
+                select(ExperimentStep.device_id).where(
+                    ExperimentStep.experiment_id == experiment_id
+                ).distinct()
+            )
+            device_ids = [row[0] for row in result.all()]
+
+        for device_id in device_ids:
             await self._drivers.release(device_id)
 
 

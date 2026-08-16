@@ -6,6 +6,26 @@
 
 ---
 
+## [1.3.2] — 2026-08-16
+
+### Fixed
+
+- **系统提示词设备表过时**：prompts.py 中的设备表（rct-01/gc-01 等 5 台幻影设备）替换为实际 6 台设备（HTHP-01/02、Rheo-01/02、Thick-01/02），含 GGS42-2A/ZNN-D6/OWC-2000D 型号和真实指标名；`OILCHEM_DOMAIN_PROMPT` 从石油炼制工艺改为钻井液测试（HTHP 失水量/流变参数/稠化时间/相关标准 API RP 13B-1 等）
+- **orchestrator `_release_devices` 释放全部设备**：改为查询 `ExperimentStep` 只释放当前实验的设备
+- **orchestrator `retry_step`/`skip_step` 缺防重入**：加 `if experiment_id in self._tasks: raise ValueError` 保护
+- **步骤超时不执行**：`_run_loop` 中用 `asyncio.wait_for(self._execute_step(...), timeout=step.timeout_s)` 包裹，超时返回 `StepResult(success=False, status_code="timeout")`
+- **`CancelledError` 处理器不设状态**：`_run_loop` 的 `except asyncio.CancelledError` 现在调用 `self._set_status(experiment_id, self.STATUS_ABORTED)`
+
+### Added
+
+- **登录限流**：`auth.py` 加内存级 IP 限流（`_LOGIN_MAX_ATTEMPTS=5`，`_LOGIN_WINDOW_S=300`），失败记 5 次后 5 分钟内返回 429；登录成功清除计数；无需新依赖
+
+### Changed
+
+- 版本号 1.3.1 → 1.3.2
+
+---
+
 ## [1.3.1] — 2026-08-16
 
 ### Changed
