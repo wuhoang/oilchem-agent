@@ -5,6 +5,19 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-08-16
+
+### Added
+
+- **常驻聊天面板**：聊天从「6 个 Tab 之一」升级为右侧常驻 ChatPanel（可折叠），任何功能页面都能直接对话；新增 NavRail 窄图标导航替代原宽 Sidebar + Tab 栏
+- **工具路由（按页面上下文）**：25 个工具打 category 标签（experiment/hardware/file/web/office/chart）；ChatRequest / AgentChatRequest 新增可选 context 字段（当前页面），后端按 context 加载对应工具子集（如 hardware → 3 硬件工具 + 图表）；context 缺省或未知时全量加载，向后兼容
+- **系统提示词按上下文裁剪**：files/database/webform 场景省略领域知识段节省 token；experiments/hardware/缺省保留
+
+### Changed
+
+- **前端三栏布局**：App.tsx 重构为 NavRail + 功能区 + ChatPanel；Sidebar.tsx 移除（会话列表逻辑并入 ChatPanel，导航并入 NavRail）；ChatWindow 精简 header（会话标题上移）
+- ToolMetadata 新增 category 字段（默认 general）；ToolManager 两个列表方法支持 categories 过滤
+
 ## [1.3.3] - 2026-08-16
 
 ### Fixed

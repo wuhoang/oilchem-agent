@@ -35,6 +35,11 @@ class AgentChatRequest(BaseModel):
     message: str = Field(..., description="用户消息")
     system_prompt: str | None = Field(default=None, description="自定义系统提示词")
     temperature: float | None = Field(default=None, description="采样温度")
+    context: str | None = Field(
+        default=None,
+        description="当前页面上下文（experiments/hardware/files/database/webform），"
+        "决定加载的工具子集与提示词裁剪；None 或 chat 表示全部",
+    )
 
 
 class AgentChatResponse(BaseModel):
@@ -60,6 +65,28 @@ class AgentStreamEvent(BaseModel):
     content: str | None = Field(default=None, description="事件文本内容")
     data: dict[str, Any] = Field(default_factory=dict, description="附加数据")
     done: bool = Field(default=False, description="是否为最终事件")
+
+
+# ---------------------------------------------------------------------------
+# 上下文 → 工具分类路由
+# ---------------------------------------------------------------------------
+
+# 页面上下文到工具分类的映射；None 表示加载全部工具。
+# 未列出的上下文（含 None / "chat" / 未知值）一律加载全部，保证兜底。
+CONTEXT_TOOL_MAP: dict[str, list[str] | None] = {
+    "experiments": ["experiment", "chart", "file"],
+    "hardware": ["hardware", "chart"],
+    "files": ["file", "office"],
+    "database": ["file"],
+    "webform": ["web"],
+}
+
+
+def _categories_for(context: str | None) -> list[str] | None:
+    """根据页面上下文返回工具分类白名单；None 表示全部。"""
+    if not context:
+        return None
+    return CONTEXT_TOOL_MAP.get(context)
 
 
 # ---------------------------------------------------------------------------
@@ -217,13 +244,17 @@ class AgentManager:
 
         self._memory.add_message(session_id, MessageRole.USER, request.message)
 
-        system_prompt = request.system_prompt or get_system_prompt()
+        system_prompt = request.system_prompt or get_system_prompt(
+            context=request.context
+        )
         messages: list[ChatMessage] = []
         if system_prompt:
             messages.append(ChatMessage(role=MessageRole.SYSTEM, content=system_prompt))
         messages.extend(self._memory.get_context(session_id))
 
-        tools = self._tool_manager.list_tools_schema()
+        tools = self._tool_manager.list_tools_schema(
+            categories=_categories_for(request.context)
+        )
 
         final_response = ""
         tool_called = False
@@ -544,6 +575,7 @@ class AgentManager:
         message: str,
         system_prompt: str | None = None,
         temperature: float | None = None,
+        context: str | None = None,
     ) -> AsyncIterator[AgentStreamEvent]:
         """流式 function calling 对话（SSE 主入口）。
 
@@ -568,8 +600,12 @@ class AgentManager:
             messages.append(ChatMessage(role=MessageRole.SYSTEM, content=system_prompt))
         messages.extend(self._memory.get_context(session_id))
 
-        tools = self._tool_manager.list_tools_schema()
-        tool_desc_map = {t["name"]: t["description"] for t in self._tool_manager.list_available_tools()}
+        categories = _categories_for(context)
+        tools = self._tool_manager.list_tools_schema(categories=categories)
+        tool_desc_map = {
+            t["name"]: t["description"]
+            for t in self._tool_manager.list_available_tools(categories=categories)
+        }
 
         tool_called = False
         call_count = 0

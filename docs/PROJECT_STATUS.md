@@ -1,6 +1,7 @@
-# OilChem Agent 项目状态报告 (v1.3.3)
+# OilChem Agent 项目状态报告 (v2.0.0)
 
 > 更新：2026-08-16
+> v2.0.0 变更：前端三栏布局（NavRail 窄导航 + 功能区 + 常驻可折叠 ChatPanel）；25 个工具按 category 打标，聊天请求按页面 context 路由工具子集；系统提示词按上下文裁剪。
 > v1.3.3 变更：修复聊天主链路崩溃（提示词 format 大括号冲突）、审核人默认值 422、中止按钮无状态限制、start 重复展开步骤、retry/skip 端点 500 五类缺陷。
 > v1.3.0 变更：用户认证（JWT 登录 + 全量鉴权开关）、RBAC 接入（操作员/审核人/管理员）、审核人联动账号、前端登录页、认证测试 7 例。
 
@@ -194,9 +195,11 @@ Agent 内部管线:
 
 | 组件 | 状态 | 说明 |
 |---|---|---|
-| `App.tsx` | 🔧 | 6 Tab 导航 (对话/实验中心/文件/硬件/数据/网页填表) |
-| `ChatWindow.tsx` | 🔧 | SSE 流式消费，7 种事件类型处理 |
-| `Sidebar.tsx` | 🔧 | 会话列表，新建/选择/删除 |
+| `App.tsx` | 🔧 | v2.0.0 三栏布局：NavRail + 功能区 + ChatPanel；activeTab 5 个功能页，聊天常驻右侧 |
+| `NavRail.tsx` | 🔧 | v2.0.0 新增：w-14 窄图标导航（实验/文件/硬件/数据/网页） |
+| `ChatPanel.tsx` | 🔧 | v2.0.0 新增：常驻聊天面板（会话列表 + ChatWindow + 折叠），传 activeTab 作为 context |
+| `ChatWindow.tsx` | 🔧 | SSE 流式消费，7 种事件类型处理；嵌入式，header 精简；请求带 context |
+| ~~`Sidebar.tsx`~~ | ❌ 移除 | v2.0.0 删除：会话列表并入 ChatPanel，导航并入 NavRail |
 | `FileBrowser.tsx` | 🔧 | 文件树浏览+预览 |
 | `HardwarePanel.tsx` | 🔧 | 设备卡片+指标展示 |
 | `DatabasePanel.tsx` | 🔧 | 表选择+数据列表+SQL 查询框 |
@@ -287,16 +290,15 @@ Agent 内部管线:
 
 | 位置 | 版本号 |
 |---|---|
-| `backend/pyproject.toml` | 1.3.2 |
-| `backend/.env` (APP_VERSION) | 1.3.2 |
-| `backend/.env.example` | 1.3.2 |
-| `backend/app/core/config.py` (default) | 1.3.2 |
-| `backend/app/core/constants.py` | 1.3.2 |
-| `frontend/package.json` | 1.3.2 |
-| `frontend/package-lock.json` | 1.3.2 |
-| `frontend/src/App.tsx` | v1.3.2 |
-| `frontend/src/components/Sidebar.tsx` | v1.3.2 |
-| `docs/api.md` | 1.3.2 |
+| `backend/pyproject.toml` | 2.0.0 |
+| `backend/.env` (APP_VERSION) | 2.0.0 |
+| `backend/.env.example` | 2.0.0 |
+| `backend/app/core/config.py` (default) | 2.0.0 |
+| `backend/app/core/constants.py` | 2.0.0 |
+| `frontend/package.json` | 2.0.0 |
+| `frontend/package-lock.json` | 2.0.0 |
+| `frontend/src/App.tsx` | v2.0.0 |
+| `docs/api.md` | 2.0.0 |
 
 ## 八、v1.3.2 变更记录
 

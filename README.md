@@ -2,7 +2,7 @@
 
 > 石油化工智能实验室 Agent 平台 —— 连接「人 · 硬件 · 软件 · 网页」的中间层。
 
-![version](https://img.shields.io/badge/version-1.3.3-blue)
+![version](https://img.shields.io/badge/version-2.0.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![python](https://img.shields.io/badge/Python-3.12-blue)
 ![react](https://img.shields.io/badge/React-18-blue)
@@ -447,8 +447,8 @@ oilchem-agent/
 │   └── src/
 │       ├── types/index.ts            #   TypeScript 类型定义
 │       ├── services/api.ts           #   API 服务层
-│       ├── components/               #   对话/文件/硬件/数据/网页填表面板
-│       └── App.tsx                   #   根组件 + Tab 导航
+│       ├── components/               #   面板组件（NavRail/ChatPanel/实验中心/文件/硬件/数据/网页填表）
+│       └── App.tsx                   #   根组件（三栏：导航 + 功能区 + 常驻聊天）
 ├── docs/                             # 架构 / 路线图 / API 文档
 ├── hardware_info/                    # 硬件演示数据（模拟指标样例）
 ├── CHANGELOG.md                      # 更新日志

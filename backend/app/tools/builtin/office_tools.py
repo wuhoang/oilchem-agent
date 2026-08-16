@@ -32,6 +32,7 @@ def _resolve_path(path: str) -> str:
 
 @register_tool(ToolMetadata(
     name="read_excel",
+    category="office",
     description=(
         "读取 Excel 文件（.xlsx）的内容，返回工作表数据。"
         "支持指定 sheet_name 读取特定工作表，或读取所有工作表。"
@@ -141,6 +142,7 @@ class ReadExcelTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="write_excel",
+    category="office",
     description=(
         "将数据写入 Excel 文件。支持创建新文件或追加到现有文件。"
         "参数 data 为数组，每个元素是一行数据的字典。"
@@ -246,6 +248,7 @@ class WriteExcelTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="read_word",
+    category="office",
     description=(
         "读取 Word 文档（.docx）的内容，返回段落列表和表格数据。"
         "可用于提取文档文本、分析报告内容等。"
@@ -334,6 +337,7 @@ class ReadWordTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="write_word",
+    category="office",
     description=(
         "创建 Word 文档（.docx）。支持写入标题、段落和表格。"
         "参数 paragraphs 为数组，每个元素包含 text 和 style。"
@@ -428,6 +432,7 @@ class WriteWordTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="read_ppt",
+    category="office",
     description=(
         "读取 PowerPoint 文件（.pptx）的内容，返回幻灯片文本和备注。"
         "可用于提取演示文稿内容、分析报告结构等。"
@@ -511,6 +516,7 @@ class ReadPPTTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="write_ppt",
+    category="office",
     description=(
         "创建 PowerPoint 文件（.pptx）。支持添加幻灯片、设置标题和内容。"
         "参数 slides 为数组，每个元素包含 title、content 和 notes。"

@@ -82,20 +82,36 @@ class ToolManager:
             )
             return ToolResult(success=False, error=str(exc))
 
-    def list_available_tools(self) -> list[dict[str, Any]]:
-        """列出所有可用工具的描述信息（供 Agent 使用）。"""
+    def list_available_tools(
+        self, categories: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """列出可用工具的描述信息（供 Agent 使用）。
+
+        Parameters
+        ----------
+        categories:
+            工具分类白名单；None 表示不过滤（全部）。
+        """
         return [
             {
                 "name": m.name,
                 "description": m.description,
                 "parameters": m.parameters,
+                "category": m.category,
             }
             for m in list_tools()
-            if m.enabled
+            if m.enabled and (categories is None or m.category in categories)
         ]
 
-    def list_tools_schema(self) -> list[dict[str, Any]]:
+    def list_tools_schema(
+        self, categories: list[str] | None = None
+    ) -> list[dict[str, Any]]:
         """将可用工具转为 OpenAI tools 协议格式，供 function calling 使用。
+
+        Parameters
+        ----------
+        categories:
+            工具分类白名单；None 表示不过滤（全部）。
 
         工具注册时 parameters 有两种格式（历史遗留）：
           - 标准 JSON Schema：{"type": "object", "properties": {...}}
@@ -106,6 +122,8 @@ class ToolManager:
         schemas = []
         for m in list_tools():
             if not m.enabled:
+                continue
+            if categories is not None and m.category not in categories:
                 continue
             fn: dict[str, Any] = {
                 "name": m.name,

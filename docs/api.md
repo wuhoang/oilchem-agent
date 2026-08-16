@@ -16,7 +16,7 @@ Returns the application banner.
 ```json
 {
   "name": "OilChem Agent",
-  "version": "1.3.3",
+  "version": "2.0.0",
   "status": "running"
 }
 ```
@@ -114,9 +114,12 @@ Liveness probe.
   "session_id": null,
   "message": "读取 C:/data/report.csv 并分析数据",
   "system_prompt": null,
-  "temperature": null
+  "temperature": null,
+  "context": null
 }
 ```
+
+`context` 为当前页面上下文（experiments/hardware/files/database/webform），后端据此加载对应工具子集；缺省或未知值加载全部工具。
 
 响应：
 ```json

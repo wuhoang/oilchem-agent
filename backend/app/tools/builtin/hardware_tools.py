@@ -90,6 +90,7 @@ def _downsample(
 
 @register_tool(ToolMetadata(
     name="read_hardware",
+    category="hardware",
     description=(
         "读取实验室硬件设备的【实时】数据快照。返回设备当前最新的传感器读数"
         "（温度、压力、漏失量、转读数等）。适用于：用户问'现在温度多少'、"
@@ -153,6 +154,7 @@ class ReadHardwareTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="send_hardware_command",
+    category="hardware",
     description=(
         "向实验室硬件设备下发控制指令。支持的指令：start（启动）、stop（停止）、"
         "reset（复位）、calibrate（校准）、read_params（读取参数）。"
@@ -200,6 +202,7 @@ class SendHardwareCommandTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="query_hardware_history",
+    category="hardware",
     description=(
         "查询硬件设备在【过去一段时间】的历史遥测数据，返回按时间排序的指标时间序列"
         "（timestamps + values）。适用于：用户问'过去X分钟/小时的变化'、'温度趋势'、"

@@ -34,6 +34,8 @@ export interface ChatRequest {
   message: string;
   system_prompt?: string | null;
   temperature?: number | null;
+  /** 当前页面上下文（experiments/hardware/files/database/webform），决定后端加载的工具子集 */
+  context?: string | null;
 }
 
 /** 对话响应 */

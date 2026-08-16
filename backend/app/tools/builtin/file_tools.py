@@ -91,6 +91,7 @@ def _is_text_file(path: Path) -> bool:
 @register_tool(
     ToolMetadata(
         name="read_file",
+        category="file",
         description="读取指定文件的文本内容。支持 CSV、JSON、Markdown、Python 等文本文件。对于二进制文件将返回元信息而非内容。",
         parameters={
             "type": "object",
@@ -175,6 +176,7 @@ class ReadFileTool(BaseTool):
 @register_tool(
     ToolMetadata(
         name="write_file",
+        category="file",
         description="将内容写入指定文件。如果文件已存在则覆盖，不存在则创建。父目录必须已存在。",
         parameters={
             "type": "object",
@@ -222,6 +224,7 @@ class WriteFileTool(BaseTool):
 @register_tool(
     ToolMetadata(
         name="append_file",
+        category="file",
         description="将内容追加到指定文件末尾。如果文件不存在则创建。",
         parameters={
             "type": "object",
@@ -272,6 +275,7 @@ class AppendFileTool(BaseTool):
 @register_tool(
     ToolMetadata(
         name="list_files",
+        category="file",
         description="列出指定目录下的文件和子目录。返回每个条目的名称、类型和大小。",
         parameters={
             "type": "object",
@@ -364,6 +368,7 @@ class ListFilesTool(BaseTool):
 @register_tool(
     ToolMetadata(
         name="delete_file",
+        category="file",
         description="删除指定文件。仅支持删除文件，不支持删除目录（安全考虑）。",
         parameters={
             "type": "object",

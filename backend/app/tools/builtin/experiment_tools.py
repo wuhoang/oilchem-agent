@@ -19,6 +19,7 @@ from app.tools.registry import register_tool
 
 @register_tool(ToolMetadata(
     name="list_protocols",
+    category="experiment",
     description="列出所有可用的实验方案（protocols）。当用户想了解有哪些实验可以做、"
     "或想选择一个方案来运行时使用。",
     parameters={
@@ -47,6 +48,7 @@ class ListProtocolsTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="create_experiment",
+    category="experiment",
     description="创建一个实验。需提供方案ID（protocol_id）和操作员ID（operator_id），"
     "可选样品编号（sample_code）。创建后需再调用 start_experiment 才能开始执行。",
     parameters={
@@ -85,6 +87,7 @@ class CreateExperimentTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="start_experiment",
+    category="experiment",
     description="启动一个已创建但未运行的实验。启动后系统自动拆解步骤并驱动设备执行。",
     parameters={
         "type": "object",
@@ -112,6 +115,7 @@ class StartExperimentTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="query_experiment_progress",
+    category="experiment",
     description="查询实验的当前进度：状态、各步骤执行情况。当用户问'实验进行到哪了'时使用。",
     parameters={
         "type": "object",
@@ -139,6 +143,7 @@ class QueryExperimentProgressTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="query_experiment_result",
+    category="experiment",
     description="查询实验的测量结果数据（时间序列）。当用户问'实验结果如何''数据是什么'时使用。",
     parameters={
         "type": "object",
@@ -173,6 +178,7 @@ class QueryExperimentResultTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="generate_experiment_report",
+    category="experiment",
     description="为指定实验生成报告文件（Word + Excel）。一次调用即可完成："
     "查询实验数据、生成 Word 报告（含信息表/步骤/数据/审计）和 Excel 数据表，"
     "返回文件路径。当用户要求'生成实验报告''导出报告'时使用此工具。",

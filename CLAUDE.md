@@ -96,7 +96,7 @@ These guidelines are working if: fewer unnecessary changes in diffs, fewer rewri
 
 **OilChem Agent** — 石油化工/化学实验室 AI 助手，定位为「人-硬件-软件-网页」的中间层。
 
-- 当前版本：1.3.3，在 `develop` 分支开发
+- 当前版本：2.0.0，在 `develop` 分支开发
 - 技术栈：Python 3.12 + FastAPI + SQLAlchemy (aiosqlite) | React 18 + TypeScript + Vite + TailwindCSS
 - **实际使用的 LLM**：DeepSeek API（`deepseek-chat`，通过 OpenAI 兼容接口）。配置在 `backend/.env`，**不在代码里**
 - 代码层同时预留了本地 Ollama Provider（可用 `qwen2.5` 等），但**当前默认和实际运行都是 DeepSeek**，不要假设系统用本地小模型
@@ -178,11 +178,11 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 - **MINOR（第二位）**：向后兼容的新功能（新增端点 / 工具 / 模块 / 前端页面）。
 - **PATCH（第三位）**：向后兼容的问题修复与清理（bug 修复、死代码删除、文档修正、消警告、重构）。
 
-每次 bump 后，统一更新这 9 处（注：`backend/.env` 被 gitignore，仅本地生效，改它是为了让本地运行时版本显示一致）：
+每次 bump 后，统一更新这 8 处（注：`backend/.env` 被 gitignore，仅本地生效，改它是为了让本地运行时版本显示一致；v2.0.0 起 Sidebar.tsx 已删除，前端版本显示在 App.tsx）：
 - `backend/pyproject.toml`、`backend/.env` (APP_VERSION)
 - `backend/app/core/config.py`、`backend/app/core/constants.py`
 - `frontend/package.json`、`frontend/package-lock.json`
-- `frontend/src/App.tsx`、`frontend/src/components/Sidebar.tsx`
+- `frontend/src/App.tsx`
 - `docs/api.md`
 
 ### 文档更新
@@ -219,7 +219,7 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 
 ### 每次改动后必做检查清单
 代码改完之后，主动检查以下内容，有遗漏就补上，不需要等用户提醒：
-1. **版本号**：涉及功能变化时，检查 9 处版本号是否都已更新（见上方"版本号"章节）
+1. **版本号**：涉及功能变化时，检查 8 处版本号是否都已更新（见上方"版本号"章节）
 2. **CHANGELOG.md**：按 Added/Fixed/Changed 格式追加本次变更
 3. **DEVELOPMENT_LOG.md**：补充详细变更记录
 4. **docs/PROJECT_STATUS.md**：逐模块状态表如有变化要同步更新

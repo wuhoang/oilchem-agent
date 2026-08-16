@@ -49,6 +49,11 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="用户消息")
     system_prompt: str | None = Field(default=None, description="自定义系统提示词")
     temperature: float | None = Field(default=None, description="采样温度")
+    context: str | None = Field(
+        default=None,
+        description="当前页面上下文（experiments/hardware/files/database/webform），"
+        "决定加载的工具子集；None 表示全部",
+    )
 
 
 class ChatResponse(BaseModel):
@@ -105,6 +110,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             message=guard_result["sanitized_input"],
             system_prompt=request.system_prompt,
             temperature=request.temperature,
+            context=request.context,
         )
     )
 
@@ -195,7 +201,9 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
         full_response = ""
         try:
             session_id = request.session_id or str(uuid.uuid4())
-            system_prompt = request.system_prompt or get_system_prompt()
+            system_prompt = request.system_prompt or get_system_prompt(
+                context=request.context
+            )
 
             # 1. 流式 function calling 对话
             #    事件序列：thinking → tools(start/complete) × N → chart(可选) → chunk → done
@@ -204,6 +212,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
                 message=safe_message,
                 system_prompt=system_prompt,
                 temperature=request.temperature,
+                context=request.context,
             ):
                 if event.type == "chunk" and event.content:
                     full_response += event.content

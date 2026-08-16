@@ -26,6 +26,10 @@ class ToolMetadata(BaseModel):
         description="工具参数的 JSON Schema 描述",
     )
     enabled: bool = Field(default=True, description="是否启用")
+    category: str = Field(
+        default="general",
+        description="工具分类标签（experiment/hardware/file/web/office/chart），用于按上下文路由工具子集",
+    )
 
 
 class ToolResult(BaseModel):

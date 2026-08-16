@@ -444,6 +444,7 @@ def _sync_take_screenshot(page) -> dict[str, Any]:
 
 @register_tool(ToolMetadata(
     name="browse_webpage",
+    category="web",
     description=(
         "打开网页并返回页面内容、表单元素信息和截图。"
         "可用于登录系统前的页面分析、提取页面文本等。"
@@ -509,6 +510,7 @@ class BrowseWebpageTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="smart_fill_form",
+    category="web",
     description=(
         "智能网页填表工具。自动打开网页，识别表单字段，"
         "按字段名/描述匹配并填写数据，然后提交表单。"
@@ -653,6 +655,7 @@ class SmartFillFormTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="fill_webform",
+    category="web",
     description=(
         "在网页上按索引填写表单（用于需要精确控制的场景）。"
         "推荐优先使用 smart_fill_form 工具，它支持按字段名自动匹配。"
@@ -770,6 +773,7 @@ class FillWebformTool(BaseTool):
 
 @register_tool(ToolMetadata(
     name="extract_webpage_text",
+    category="web",
     description=(
         "提取网页的文本内容，用于阅读网页信息、抓取数据。"
     ),

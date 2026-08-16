@@ -154,8 +154,21 @@ def _build_device_table() -> str:
         lines.append(f"| {device_id} | {name} | {dev_type} | {metric_str} |")
     return "\n".join(lines)
 
+# 页面上下文 → 是否包含领域提示词。
+# 实验/硬件场景需要领域知识；文件/数据库/网页场景裁剪以节省 token。
+# 未列出的上下文（None / chat / 未知值）默认包含，保证兜底。
+_CONTEXT_DOMAIN_MAP: dict[str, bool] = {
+    "experiments": True,
+    "hardware": True,
+    "files": False,
+    "database": False,
+    "webform": False,
+}
+
+
 def get_system_prompt(
-    include_domain: bool = True,
+    context: str | None = None,
+    include_domain: bool | None = None,
     include_lab_automation: bool = False,
     custom_additions: str | None = None,
     **kwargs: Any,
@@ -164,8 +177,11 @@ def get_system_prompt(
 
     Parameters
     ----------
+    context:
+        页面上下文（experiments/hardware/files/database/webform），
+        决定是否包含领域提示词；None / chat / 未知值默认包含。
     include_domain:
-        是否包含石油化工领域专用提示词。
+        是否包含石油化工领域专用提示词；None 时按 context 决定。
     include_lab_automation:
         是否包含实验室自动化专用提示词。
     custom_additions:
@@ -178,6 +194,9 @@ def get_system_prompt(
     str
         完整的系统提示词。
     """
+    if include_domain is None:
+        include_domain = _CONTEXT_DOMAIN_MAP.get(context or "", True)
+
     # 用 replace 而非 str.format：提示词正文含 JSON 示例大括号（如 {"字段名": "值"}），
     # format 会将其误当占位符解析导致 KeyError。
     parts = [DEFAULT_SYSTEM_PROMPT.replace("{device_table}", _build_device_table())]

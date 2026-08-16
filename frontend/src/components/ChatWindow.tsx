@@ -17,6 +17,8 @@ interface ChatWindowProps {
   sessionId: string | null;
   onSessionCreated: (sessionId: string) => void;
   onMessageComplete?: () => void;
+  /** 当前页面上下文，透传给后端做工具路由 */
+  context?: string;
 }
 
 function generateId(): string {
@@ -61,7 +63,7 @@ function removeSessionFromStorage(sessionId: string) {
   }
 }
 
-export function ChatWindow({ sessionId, onSessionCreated, onMessageComplete }: ChatWindowProps) {
+export function ChatWindow({ sessionId, onSessionCreated, onMessageComplete, context }: ChatWindowProps) {
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     loadMessagesFromStorage(sessionId)
   );
@@ -129,6 +131,7 @@ export function ChatWindow({ sessionId, onSessionCreated, onMessageComplete }: C
           {
             session_id: sessionIdRef.current,
             message: text,
+            context,
           },
           (event: StreamEvent) => {
             if (abortRef.current?.signal.aborted) return;
@@ -277,7 +280,7 @@ export function ChatWindow({ sessionId, onSessionCreated, onMessageComplete }: C
         abortRef.current = null;
       }
     },
-    [loading],
+    [loading, context],
   );
 
   useEffect(() => {
@@ -306,17 +309,14 @@ export function ChatWindow({ sessionId, onSessionCreated, onMessageComplete }: C
 
   return (
     <div className="flex h-full flex-1 flex-col bg-slate-50">
-      {/* Header */}
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-base font-semibold text-slate-700">
-            {sessionId ? `会话 ${sessionId.slice(-8)}` : "新会话"}
-          </h1>
+      {/* 精简 Header：会话标题由 ChatPanel 顶部显示，这里只保留状态与停止按钮 */}
+      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-3 py-2">
+        <div className="flex items-center gap-2">
           <span className="text-xs text-slate-400">
             {messages.length} 条消息
           </span>
           {loading && (
-            <span className="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-0.5 text-xs text-blue-600">
+            <span className="flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs text-blue-600">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
               正在思考...
             </span>
@@ -326,7 +326,7 @@ export function ChatWindow({ sessionId, onSessionCreated, onMessageComplete }: C
         {loading && (
           <button
             onClick={handleStop}
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 transition hover:bg-slate-100"
+            className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 transition hover:bg-slate-100"
           >
             停止生成
           </button>

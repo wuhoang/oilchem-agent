@@ -51,6 +51,7 @@ def _fig_to_base64(fig: Any) -> str:
 
 @register_tool(ToolMetadata(
     name="plot_chart",
+    category="chart",
     description=(
         "绘制数据图表并返回图片。支持曲线图(plot)、柱状图(bar)、散点图(scatter)、"
         "直方图(hist)。输入 x 和 y 数据（列表或 JSON 数组），生成图表后返回 base64 图片，"

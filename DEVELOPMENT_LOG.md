@@ -6,6 +6,28 @@
 
 ---
 
+## [2.0.0] — 2026-08-16
+
+### Added
+
+- **常驻聊天面板 + 三栏布局**
+  - 新建 `NavRail.tsx`：w-14 窄图标导航（实验/文件/硬件/数据/网页 5 个入口），取代原 Sidebar 导航与 header Tab 栏
+  - 新建 `ChatPanel.tsx`：w-96 常驻右侧面板 = 顶栏（折叠/新建）+ 会话列表（原 Sidebar.tsx 逻辑整体移入，max-h-44 摘要区）+ ChatWindow；折叠态退化为 w-10 窄条（单个展开按钮）
+  - `App.tsx` 重构为三栏：NavRail + 功能区 + ChatPanel；activeTab 从 6 个（含 chat）缩减为 5 个功能 Tab，默认 experiments；聊天不再受 Tab 切换影响
+  - `ChatWindow.tsx` 嵌入式改造：去独立 header 会话标题（上移 ChatPanel 顶部），保留消息数/正在思考/停止生成；新增 context prop
+  - `Sidebar.tsx` 删除（被 NavRail + ChatPanel 取代）
+- **工具路由（按页面上下文）**
+  - `tools/base.py`：ToolMetadata 新增 `category: str = "general"`；6 个工具文件 25 个工具全部打标：file×5 / office×6 / web×4 / chart×1 / hardware×3 / experiment×6
+  - `tools/manager.py`：`list_available_tools()` / `list_tools_schema()` 新增 `categories: list[str] | None` 过滤参数
+  - `agent/manager.py`：`AgentChatRequest` 新增 `context` 字段；`CONTEXT_TOOL_MAP`（experiments→experiment/chart/file，hardware→hardware/chart，files→file/office，database→file，webform→web；未列出→全部）；`chat_with_tools` / `chat_stream_with_tools` 按 context 加载工具子集
+  - `chat.py`：`ChatRequest` 新增 `context`，两个端点透传
+  - `prompts.py`：`get_system_prompt(context=...)` 按上下文裁剪领域提示词（files/database/webform 省约 700 字符）；保持 replace() 填充设备表方案不变
+- **前端类型**：`types/index.ts` ChatRequest 新增 `context?: string | null`
+
+### Changed
+
+- 版本号 1.3.3 → 2.0.0（MAJOR：UI 架构变更——三栏布局 + 常驻聊天面板）
+
 ## [1.3.3] — 2026-08-16
 
 ### Fixed
