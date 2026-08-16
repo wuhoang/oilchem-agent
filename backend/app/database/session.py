@@ -73,9 +73,10 @@ async def init_db() -> None:
 
     # 1. 运行 Alembic 迁移（处理已记录的历史表）
     try:
-        import alembic.config
-        import alembic.command
         from pathlib import Path
+
+        import alembic.command
+        import alembic.config
 
         def _run_migration() -> None:
             alembic_ini = Path(__file__).resolve().parents[2] / "alembic.ini"
@@ -104,6 +105,7 @@ async def init_db() -> None:
 
     # 3. 种子数据：仅在业务表为空时插入（幂等）
     await _seed_business_data()
+    await _seed_users()
 
 
 async def _seed_business_data() -> None:
@@ -111,20 +113,20 @@ async def _seed_business_data() -> None:
     from sqlalchemy import select
 
     from app.models.tables import (
-        Experiment,
-        Sample,
-        Device,
-        Experimenter,
-        Protocol,
-        ProtocolStep,
-        Material,
-        SEED_EXPERIMENTS,
-        SEED_SAMPLES,
         SEED_DEVICES,
         SEED_EXPERIMENTERS,
-        SEED_PROTOCOLS,
-        SEED_PROTOCOL_STEPS,
+        SEED_EXPERIMENTS,
         SEED_MATERIALS,
+        SEED_PROTOCOL_STEPS,
+        SEED_PROTOCOLS,
+        SEED_SAMPLES,
+        Device,
+        Experiment,
+        Experimenter,
+        Material,
+        Protocol,
+        ProtocolStep,
+        Sample,
     )
 
     engine = get_engine()
@@ -193,6 +195,43 @@ async def _seed_business_data() -> None:
             )
 
         await session.commit()
+
+
+async def _seed_users() -> None:
+    """在 users 表为空时插入演示账号（幂等）。
+
+    密码取自 .env（AUTH_ADMIN_PASSWORD / AUTH_OPERATOR_PASSWORD /
+    AUTH_REVIEWER_PASSWORD），未配置时用默认值并在日志提示。
+    """
+    from sqlalchemy import select
+
+    from app.core.security import hash_password
+    from app.models.tables import User
+
+    engine = get_engine()
+    async with async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)() as session:
+        result = await session.execute(select(User).limit(1))
+        if result.first() is not None:
+            return
+
+        default_admin = settings.auth_admin_password or "admin123"
+        default_operator = settings.auth_operator_password or "operator123"
+        default_reviewer = settings.auth_reviewer_password or "reviewer123"
+
+        users = [
+            User(username="admin", email="admin@oilchem.local", role="admin",
+                 hashed_password=hash_password(default_admin)),
+            User(username="operator", email="operator@oilchem.local", role="operator",
+                 hashed_password=hash_password(default_operator)),
+            User(username="reviewer", email="reviewer@oilchem.local", role="reviewer",
+                 hashed_password=hash_password(default_reviewer)),
+        ]
+        for u in users:
+            session.add(u)
+        await session.commit()
+        logger.bind(component="database").info(
+            "Seeded {} demo users (admin/operator/reviewer)", len(users)
+        )
 
 
 async def close_db() -> None:

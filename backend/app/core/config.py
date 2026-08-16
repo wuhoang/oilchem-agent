@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # ---- App ----
     app_name: str = Field(default="OilChem Agent", alias="APP_NAME")
-    version: str = Field(default="1.2.0", alias="APP_VERSION")
+    version: str = Field(default="1.3.0", alias="APP_VERSION")
     env: str = Field(default="dev", alias="ENV")
     debug: bool = Field(default=True, alias="DEBUG")
 
@@ -78,8 +78,11 @@ class Settings(BaseSettings):
 
     # ---- Auth ----
     auth_enabled: bool = Field(default=False, alias="AUTH_ENABLED")
-    jwt_secret_key: str = Field(default="change-me-in-production", alias="JWT_SECRET_KEY")
-    jwt_expire_minutes: int = Field(default=60, alias="JWT_EXPIRE_MINUTES")
+    jwt_secret_key: str = Field(default="dev-only-secret-key-change-me-before-production", alias="JWT_SECRET_KEY")
+    jwt_expire_minutes: int = Field(default=10080, alias="JWT_EXPIRE_MINUTES")
+    auth_admin_password: str = Field(default="", alias="AUTH_ADMIN_PASSWORD")
+    auth_operator_password: str = Field(default="", alias="AUTH_OPERATOR_PASSWORD")
+    auth_reviewer_password: str = Field(default="", alias="AUTH_REVIEWER_PASSWORD")
 
     # ---- API ----
     api_v1_prefix: str = "/api/v1"

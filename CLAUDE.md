@@ -67,6 +67,18 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 These guidelines are working if: fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
+### 5. 技能使用约定（superpowers 技能包）
+
+新会话自动生效，按场景触发，**不是每个任务都套**：
+
+- 要加新功能/新组件 → 先调用 `brainstorming` 探需求和设计，再动手写
+- 声称「做完了/修好了」之前 → 先调用 `verification-before-completion` 跑验证，拿证据再下结论
+- 排查 bug → 用 `systematic-debugging` 找根因再改，不瞎猜乱试
+- 写代码（功能或修复）→ 用 `test-driven-development`，先写测试再实现
+- 小改动、纯文档、几句话能说清的事 → 直接干，不套流程
+
+冲突时以上文 2~4 条（极简、外科式改动）优先。
+
 ## 目录注意事项
 
 以下目录不在版本控制中，体量巨大（合计 >6GB），**日常搜索/Grep/Glob 默认排除**，误扫会瞬间烧掉数万 token：
@@ -84,7 +96,7 @@ These guidelines are working if: fewer unnecessary changes in diffs, fewer rewri
 
 **OilChem Agent** — 石油化工/化学实验室 AI 助手，定位为「人-硬件-软件-网页」的中间层。
 
-- 当前版本：1.2.0，在 `develop` 分支开发
+- 当前版本：1.3.0，在 `develop` 分支开发
 - 技术栈：Python 3.12 + FastAPI + SQLAlchemy (aiosqlite) | React 18 + TypeScript + Vite + TailwindCSS
 - **实际使用的 LLM**：DeepSeek API（`deepseek-chat`，通过 OpenAI 兼容接口）。配置在 `backend/.env`，**不在代码里**
 - 代码层同时预留了本地 Ollama Provider（可用 `qwen2.5` 等），但**当前默认和实际运行都是 DeepSeek**，不要假设系统用本地小模型
@@ -129,11 +141,11 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 
 | 状态 | 模块 |
 |------|------|
-| ✅ 可用 | FastAPI 骨架、LLM 客户端 (OpenAI 兼容/DeepSeek + Ollama 预留)、Playwright 网页工具 (browse/smart_fill)、对话端点 (含 SSE)、Guardrails 已接入 chat 端点、DB 端点已接入 ORM (SQLite)、**实验域 M1-M7 端到端闭环** (编排器 orchestrator / 报告生成 / SSE 事件 / 追溯审计) |
+| ✅ 可用 | FastAPI 骨架、LLM 客户端 (OpenAI 兼容/DeepSeek + Ollama 预留)、Playwright 网页工具 (browse/smart_fill)、对话端点 (含 SSE)、Guardrails 已接入 chat 端点、DB 端点已接入 ORM (SQLite)、**实验域 M1-M7 端到端闭环** (编排器 orchestrator / 报告生成 / SSE 事件 / 追溯审计)、**用户认证 (JWT 登录 + AUTH_ENABLED 全量鉴权开关 + RBAC 角色校验)** |
 | 🔧 已实现未验证 | 25个工具中除已验证之外的其余工具、文件监听 (watchdog) |
 | 🔧 备用链路 | 旧 Planner→Executor（手写 JSON 计划），代码保留但主链路已改用 function calling，不再使用 |
-| ⚠️ Mock | 硬件设备 (油化仿真设备源统一到 DriverRegistry，驱动仍是 MockDriver 模拟器，指令为模拟下发)、DB users 表在 ORM 但未接认证 |
-| 🔌 预留 | 用户认证 (AUTH_ENABLED=false)、MCP 客户端 (写了没接)、真实硬件通信 (RS232/USB/GPIB) |
+| ⚠️ Mock | 硬件设备 (油化仿真设备源统一到 DriverRegistry，驱动仍是 MockDriver 模拟器，指令为模拟下发) |
+| 🔌 预留 | MCP 客户端 (写了没接)、真实硬件通信 (RS232/USB/GPIB) |
 
 ## 重要文件
 

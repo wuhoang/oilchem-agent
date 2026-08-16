@@ -14,16 +14,35 @@ from loguru import logger
 
 
 class Role(str, Enum):
-    """用户角色。"""
+    """用户角色（与实验流程对齐）。"""
 
-    ADMIN = "admin"
-    USER = "user"
-    VIEWER = "viewer"
+    ADMIN = "admin"      # 管理员：全部权限 + 账号管理
+    OPERATOR = "operator"  # 操作员：聊天、建实验、跑实验
+    REVIEWER = "reviewer"  # 审核人：审核实验报告
+    USER = "user"        # 普通用户（兼容旧数据）
+    VIEWER = "viewer"    # 只读用户（兼容旧数据）
 
 
 # 角色权限映射
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     Role.ADMIN: {"*"},  # 管理员拥有所有权限
+    Role.OPERATOR: {
+        "chat",
+        "files.read",
+        "files.write",
+        "files.append",
+        "files.list",
+        "tools.list",
+        "sessions.manage",
+        "experiments.manage",
+    },
+    Role.REVIEWER: {
+        "chat",
+        "files.read",
+        "files.list",
+        "tools.list",
+        "experiments.review",
+    },
     Role.USER: {
         "chat",
         "files.read",

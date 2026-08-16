@@ -5,6 +5,26 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-08-16
+
+### Added
+
+- **用户认证（JWT）**：`security.py` 从空壳实装（PBKDF2 密码哈希 + PyJWT HS256 签发/验签）；新增 `POST /api/v1/auth/login`（账号密码换令牌，默认 7 天有效）+ `GET /api/v1/auth/me`；`AUTH_ENABLED=true` 后所有 `/api/v1/*` 端点强制登录（auth 路由单独挂载不受影响）
+- **演示账号**：启动时自动创建 `admin` / `operator` / `reviewer` 三个角色账号（密码可经 `.env` 的 `AUTH_ADMIN_PASSWORD` 等配置，默认 `admin123` / `operator123` / `reviewer123`），users 表为空时幂等填充
+- **RBAC 接入**：`require_role()` 依赖工厂；实验审核端点（approve/reject）仅限 `reviewer`/`admin` 角色；`permission.py` 角色扩展为 admin/operator/reviewer（保留 user/viewer 兼容）
+- **审核人联动账号**：`GET /reviewers` 改为从 users 表查 `reviewer`/`admin` 角色账号（原为实验员表）
+- **SSE 鉴权**：`GET /experiments/events` 单独挂载，支持 `?token=` query 参数鉴权（EventSource 无法带 header）
+- **前端登录页**：`LoginPage.tsx`；`api.ts` 统一携带 `Authorization` header，401 自动清 token 并跳回登录页；顶部显示当前用户/角色 + 退出按钮；实验中心 SSE 自动带 token
+- **认证测试**：`tests/test_auth.py` 7 个用例（登录成功/失败、伪造 token、角色越权 403、审核人列表、SSE 鉴权、/auth/me 软认证）
+
+### Fixed
+
+- **experiments 表缺列修复**：本地数据库 `experiments.reviewed_by_id` 列缺失导致启动时 Alembic 后 create_all 查询报错（`no such column`），已补列修复
+- **前端冷启动不跳登录页**：`/auth/me` 改用软认证（`get_current_user_optional`），认证开启但未登录时返回 `auth_enabled=true` 而非 401，前端据此正确显示登录页
+- **登录失败误触发全局过期**：`request()` 对 `/auth/*` 端点的 401 不再清 token / 派发 `auth:expired` 事件
+- **审核人 ID 类型对齐**：`ReviewRequest.reviewer_id` 从 str 改为 int（与 users 表主键对齐，非数字 ID 由 Pydantic 直接 422，不再 500）
+- **JWT 默认密钥加长**：`JWT_SECRET_KEY` 默认值从 23 字节加长到 48 字节，消除 PyJWT `InsecureKeyLengthWarning`
+
 ## [1.2.0] - 2026-08-15
 
 ### Added

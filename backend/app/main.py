@@ -139,11 +139,17 @@ def create_app() -> FastAPI:
     )
 
     # Root + health live at the top level (not under /api/v1).
+    from app.api.v1.endpoints.auth import router as auth_router
+    from app.api.v1.endpoints.experiments import events_router
     from app.api.v1.endpoints.health import router as health_router
     from app.api.v1.endpoints.system import router as system_router
 
     app.include_router(system_router)
     app.include_router(health_router)
+    # auth / events 单独挂载：不走全量鉴权父依赖
+    # （auth 登录端点自身不能要 token；SSE 只能走 query token）
+    app.include_router(auth_router, prefix=settings.api_v1_prefix)
+    app.include_router(events_router, prefix=settings.api_v1_prefix)
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
 
     return app

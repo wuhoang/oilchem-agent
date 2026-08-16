@@ -28,6 +28,7 @@ import {
   type Measurement,
   type Experimenter,
   type AuditEvent,
+  getToken,
 } from "../services/api";
 import { notifyError } from "./ErrorToast";
 
@@ -116,7 +117,12 @@ export function ExperimentCenter() {
     if (selectedExperiment) {
       refreshDetail();
       // SSE 订阅实验事件，实时更新（替换轮询）
-      const es = new EventSource("/api/v1/experiments/events");
+      const token = getToken();
+      const es = new EventSource(
+        token
+          ? `/api/v1/experiments/events?token=${encodeURIComponent(token)}`
+          : "/api/v1/experiments/events",
+      );
       es.onmessage = (e) => {
         try {
           const ev = JSON.parse(e.data);

@@ -6,6 +6,43 @@
 
 ---
 
+## [1.3.0] — 2026-08-16
+
+### Added
+
+- **用户认证（JWT）**
+  - `core/security.py` 从空壳实装：PBKDF2-HMAC-SHA256 密码哈希（标准库，零依赖，格式 `pbkdf2$sha256$iterations$salt$hash`）+ PyJWT HS256 签发/验签（`create_access_token` / `decode_access_token`），密钥与过期时间读自 Settings（默认 7 天）
+  - 新增 `api/v1/endpoints/auth.py`：`POST /auth/login`（账号密码换令牌，失败 401 不泄露原因）+ `GET /auth/me`（返回当前用户与 `auth_enabled` 状态，供前端启动探测）
+  - `AUTH_ENABLED=true` 时全量鉴权：`api/v1/router.py` 的聚合 router 挂 `Depends(get_current_user)`；auth 路由与 SSE 路由单独在 `main.py` 挂载，避免被父级依赖拦截（登录端点自身不能要 token；EventSource 无法带 header）
+  - 新依赖 `pyjwt`（已加入 pyproject.toml 并安装）
+- **演示账号（种子）**
+  - `database/session.py` 新增 `_seed_users()`：users 表为空时创建 `admin` / `operator` / `reviewer` 三个角色账号，密码取自 `.env`（`AUTH_ADMIN_PASSWORD` 等），未配置用默认值 `admin123` / `operator123` / `reviewer123`；幂等
+- **RBAC 接入**
+  - `api/deps.py` 新增 `get_current_user`（Header Bearer 解析 + 查库校验）、`get_current_user_query`（SSE/WS 用 query token）、`require_role(*roles)` 依赖工厂（403 拒绝）
+  - 实验审核端点 `approve` / `reject` 挂 `require_role("reviewer", "admin")`；操作员调用返回 403
+  - `guardrails/permission.py` 角色扩展：`Role` 增加 `OPERATOR` / `REVIEWER`，权限映射对齐实验流程（操作员可管理实验、审核人可审核），保留 user/viewer 兼容旧数据
+- **审核人联动账号**
+  - `GET /reviewers` 改为从 users 表查 `reviewer`/`admin` 角色账号（返回 `{id, name, role}`），不再查实验员表；approve/reject 同步改查 users 表并写入 `reviewed_by_id`（账号 ID）
+- **SSE 鉴权**
+  - `GET /experiments/events` 迁移到独立 `events_router`（experiments.py 内），在 `main.py` 单独挂载，端点内挂 `get_current_user_query`：AUTH 开启时 `?token=` 校验，无 token 401
+- **前端登录**
+  - 新增 `components/LoginPage.tsx`（账号密码表单，错误提示，演示账号说明）
+  - `services/api.ts`：token 存 localStorage（`oilchem_token`），`request()` 统一携带 `Authorization` header，401 触发 `auth:expired` 全局事件并清 token；新增 `login()` / `fetchMe()` / `getToken()` / `setToken()`；`sendChatMessageStream` 同步加 header
+  - `App.tsx`：启动时 `fetchMe()` 探测（后端不可达不拦截）；`authEnabled && !user` 时渲染登录页；顶部显示当前用户/角色 + 退出按钮；监听 `auth:expired` 回登录态；版本号 v1.3.0
+  - `ExperimentCenter.tsx`：EventSource URL 自动携带 `?token=`
+- **认证测试**：新增 `tests/test_auth.py`（AUTH_ENABLED=true 场景，7 用例）：未登录 401、登录成功 + 带 token 访问 200、错误密码 401、伪造 token 401、操作员调审核 403、reviewers 列表只含 reviewer/admin、SSE 无 token 401、/auth/me 软认证返回 auth_enabled
+
+### Fixed
+
+- **本地库缺列修复**：`experiments` 表缺 `reviewed_by_id` 列（Alembic 版本号已是 005 但列不在），导致启动时 create_all 后种子查询报 `no such column` 错误、数据库初始化失败；直接 ALTER TABLE 补列修复
+- **前端冷启动不跳登录页**：`/auth/me` 改用软认证（`get_current_user_optional`），认证开启但未登录时返回 `auth_enabled=true` 而非 401；`request()` 对 `/auth/*` 端点的 401 不再清 token/派发过期事件；`ReviewRequest.reviewer_id` 改为 int 对齐 users 表主键
+
+### Changed
+
+- `JWT_EXPIRE_MINUTES` 默认 60 → 10080（7 天）
+- `config.py` 新增 `AUTH_ADMIN_PASSWORD` / `AUTH_OPERATOR_PASSWORD` / `AUTH_REVIEWER_PASSWORD`
+- 版本号 1.2.0 → 1.3.0
+
 ## [1.2.0] — 2026-08-15
 
 ### Added

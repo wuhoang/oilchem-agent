@@ -2,7 +2,7 @@
 
 > 石油化工智能实验室 Agent 平台 —— 连接「人 · 硬件 · 软件 · 网页」的中间层。
 
-![version](https://img.shields.io/badge/version-1.2.0-blue)
+![version](https://img.shields.io/badge/version-1.3.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![python](https://img.shields.io/badge/Python-3.12-blue)
 ![react](https://img.shields.io/badge/React-18-blue)
@@ -66,7 +66,7 @@ OilChem Agent 是一个面向石油化工/化学实验室的 AI 助手：通过�
 | 🌐 网页填表 | Playwright 浏览器自动化：浏览、智能填表、内容提取 | ✅ 可用 |
 | 💾 数据管理 | 实验记录/样品/设备 CRUD，SQLAlchemy ORM 持久化 | ✅ 可用 |
 | 🔌 硬件设备 | 6 台油化仿真设备（DriverRegistry 统一源），实时遥测 + 历史趋势 | ⚠️ Mock 驱动 |
-| 🔐 用户认证 | JWT 配置就绪 | 🔌 预留 |
+| 🔐 用户认证 | JWT 登录（admin/operator/reviewer 三角色），`AUTH_ENABLED=true` 全量鉴权，实验审核角色权限 | ✅ v1.3.0 |
 
 ---
 
@@ -258,9 +258,14 @@ python -m scripts.migrate drop          # 回退到初始
 ### 认证配置
 
 ```env
+# 改为 true 后所有 /api/v1/* 端点需要登录（登录/SSE 端点除外）
 AUTH_ENABLED=false
-JWT_SECRET_KEY=change-me-in-production
-JWT_EXPIRE_MINUTES=60
+JWT_SECRET_KEY=dev-only-secret-key-change-me-before-production
+JWT_EXPIRE_MINUTES=10080   # 令牌有效期（分钟），默认 7 天
+# 演示账号默认密码：admin123 / operator123 / reviewer123，可覆盖：
+AUTH_ADMIN_PASSWORD=
+AUTH_OPERATOR_PASSWORD=
+AUTH_REVIEWER_PASSWORD=
 ```
 
 ### 硬件采集配置

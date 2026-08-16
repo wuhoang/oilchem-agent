@@ -22,6 +22,35 @@ import type {
 
 const API_BASE = "/api/v1";
 
+// ---------------------------------------------------------------------------
+// 认证
+// ---------------------------------------------------------------------------
+
+const TOKEN_KEY = "oilchem_token";
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string | null): void {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** 401 时通知全局（App 负责跳登录页） */
+function notifyAuthExpired(): void {
+  setToken(null);
+  window.dispatchEvent(new CustomEvent("auth:expired"));
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -30,10 +59,15 @@ async function request<T>(
   const res = await fetch(url, {
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders(),
       ...options.headers,
     },
     ...options,
   });
+
+  if (res.status === 401 && !path.startsWith("/auth/")) {
+    notifyAuthExpired();
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -41,6 +75,35 @@ async function request<T>(
   }
 
   return res.json() as Promise<T>;
+}
+
+export interface AuthUser {
+  id: number;
+  username: string;
+  role: string;
+  email?: string;
+}
+
+export async function login(
+  username: string,
+  password: string,
+): Promise<AuthUser> {
+  const res = await request<{ access_token: string; user: AuthUser }>(
+    "/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    },
+  );
+  setToken(res.access_token);
+  return res.user;
+}
+
+export async function fetchMe(): Promise<{
+  user: AuthUser | null;
+  auth_enabled: boolean;
+}> {
+  return request("/auth/me");
 }
 
 // ---------------------------------------------------------------------------
@@ -64,10 +127,17 @@ export async function sendChatMessageStream(
   const url = `${API_BASE}/chat/stream`;
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
     body: JSON.stringify(req),
     signal,
   });
+
+  if (res.status === 401) {
+    notifyAuthExpired();
+  }
 
   if (!res.ok || !res.body) {
     throw new Error(`Stream request failed: HTTP ${res.status}`);

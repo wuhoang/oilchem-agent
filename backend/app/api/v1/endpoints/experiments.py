@@ -7,30 +7,32 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import asyncio
 import json
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.session import get_db, get_session_factory
+from app.api.deps import get_current_user_query, require_role
+from app.database.session import get_db
 from app.models.tables import (
     Experiment,
+    ExperimentAudit,
+    Experimenter,
     ExperimentStep,
     Measurement,
     Protocol,
     ProtocolStep,
-    Experimenter,
-    ExperimentAudit,
+    User,
 )
 
 router = APIRouter(tags=["experiments"])
+# SSE 事件流路由：单独挂载（不经全量鉴权父依赖，改走 query token）
+events_router = APIRouter(tags=["experiments"])
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +52,7 @@ class InterveneRequest(BaseModel):
 
 
 class ReviewRequest(BaseModel):
-    reviewer_id: str = Field(..., description="审核人 ID（实验员，将来为账号 ID）")
+    reviewer_id: int = Field(..., description="审核人 ID（用户账号 ID）")
     comment: str = Field(default="", description="审核意见")
 
 
@@ -199,17 +201,23 @@ async def abort_experiment(experiment_id: str) -> dict:
 
 
 @router.post("/experiments/{experiment_id}/approve")
-async def approve_experiment(experiment_id: str, req: ReviewRequest, db: AsyncSession = Depends(get_db)) -> dict:
-    """审核通过实验。"""
+async def approve_experiment(
+    experiment_id: str,
+    req: ReviewRequest,
+    db: AsyncSession = Depends(get_db),
+    _: Annotated[User | None, Depends(require_role("reviewer", "admin"))] = None,
+) -> dict:
+    """审核通过实验（需审核人/管理员角色）。"""
     from app.services.orchestrator import get_orchestrator
 
-    reviewer = await db.get(Experimenter, req.reviewer_id)
+    result = await db.execute(select(User).where(User.id == req.reviewer_id))
+    reviewer = result.scalar_one_or_none()
     if reviewer is None:
         raise HTTPException(status_code=404, detail=f"审核人不存在: {req.reviewer_id}")
 
     orch = get_orchestrator()
     try:
-        await orch.approve(experiment_id, reviewer.id, reviewer.name, req.comment)
+        await orch.approve(experiment_id, str(reviewer.id), reviewer.username, req.comment)
         return {"success": True, "message": f"实验 {experiment_id} 已审核通过"}
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
@@ -218,17 +226,23 @@ async def approve_experiment(experiment_id: str, req: ReviewRequest, db: AsyncSe
 
 
 @router.post("/experiments/{experiment_id}/reject")
-async def reject_experiment(experiment_id: str, req: ReviewRequest, db: AsyncSession = Depends(get_db)) -> dict:
-    """审核驳回实验。"""
+async def reject_experiment(
+    experiment_id: str,
+    req: ReviewRequest,
+    db: AsyncSession = Depends(get_db),
+    _: Annotated[User | None, Depends(require_role("reviewer", "admin"))] = None,
+) -> dict:
+    """审核驳回实验（需审核人/管理员角色）。"""
     from app.services.orchestrator import get_orchestrator
 
-    reviewer = await db.get(Experimenter, req.reviewer_id)
+    result = await db.execute(select(User).where(User.id == req.reviewer_id))
+    reviewer = result.scalar_one_or_none()
     if reviewer is None:
         raise HTTPException(status_code=404, detail=f"审核人不存在: {req.reviewer_id}")
 
     orch = get_orchestrator()
     try:
-        await orch.reject(experiment_id, reviewer.id, reviewer.name, req.comment)
+        await orch.reject(experiment_id, str(reviewer.id), reviewer.username, req.comment)
         return {"success": True, "message": f"实验 {experiment_id} 已驳回"}
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
@@ -236,8 +250,10 @@ async def reject_experiment(experiment_id: str, req: ReviewRequest, db: AsyncSes
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.get("/experiments/events")
-async def experiment_events() -> StreamingResponse:
+@events_router.get("/experiments/events")
+async def experiment_events(
+    _: Annotated[User | None, Depends(get_current_user_query)] = None,
+) -> StreamingResponse:
     """实验事件 SSE 流。推送 experiment_status/step_status/measurement 事件。
 
     注意：必须注册在 /experiments/{experiment_id} 之前，否则 "events"
@@ -256,7 +272,7 @@ async def experiment_events() -> StreamingResponse:
                 try:
                     event = await asyncio.wait_for(q.get(), timeout=30.0)
                     yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
         finally:
             orch.unsubscribe(q)
@@ -377,17 +393,17 @@ async def list_experimenters(db: AsyncSession = Depends(get_db)) -> dict:
 
 @router.get("/reviewers")
 async def list_reviewers(db: AsyncSession = Depends(get_db)) -> dict:
-    """列出可选审核人。
-
-    当前审核人与实验员共用同一批人（账号管理尚未接入）；
-    账号管理完善后，此端点应改为查询具有审核权限的账号。
-    """
-    result = await db.execute(select(Experimenter).order_by(Experimenter.id.asc()))
+    """列出可选审核人（具有审核权限的账号）。"""
+    result = await db.execute(
+        select(User)
+        .where(User.role.in_(["reviewer", "admin"]))
+        .order_by(User.id.asc())
+    )
     reviewers = result.scalars().all()
     return {
         "reviewers": [
-            {"id": e.id, "name": e.name, "role": e.role, "department": e.department}
-            for e in reviewers
+            {"id": u.id, "name": u.username, "role": u.role}
+            for u in reviewers
         ]
     }
 

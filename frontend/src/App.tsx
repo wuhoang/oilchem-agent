@@ -5,7 +5,7 @@
  * 支持 Tab 切换：对话、文件、硬件、数据库
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatWindow } from "./components/ChatWindow";
 import { FileBrowser } from "./components/FileBrowser";
@@ -14,6 +14,8 @@ import { DatabasePanel } from "./components/DatabasePanel";
 import { WebFormPanel } from "./components/WebFormPanel";
 import { ExperimentCenter } from "./components/ExperimentCenter";
 import { ErrorToast } from "./components/ErrorToast";
+import { LoginPage } from "./components/LoginPage";
+import { fetchMe, setToken, type AuthUser } from "./services/api";
 
 type TabType = "chat" | "experiments" | "files" | "hardware" | "database" | "webform";
 
@@ -89,6 +91,49 @@ function App() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [activeTab, setActiveTab] = useState<TabType>("chat");
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [authEnabled, setAuthEnabled] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    fetchMe()
+      .then((res) => {
+        setAuthEnabled(res.auth_enabled);
+        setCurrentUser(res.user);
+      })
+      .catch(() => {
+        // 后端不可达时不拦截页面，保持开放模式
+      })
+      .finally(() => setAuthChecked(true));
+  }, []);
+
+  useEffect(() => {
+    const onAuthExpired = () => {
+      setCurrentUser(null);
+      setActiveTab("chat");
+    };
+    window.addEventListener("auth:expired", onAuthExpired);
+    return () => window.removeEventListener("auth:expired", onAuthExpired);
+  }, []);
+
+  const handleLoginSuccess = (username: string, role: string) => {
+    setCurrentUser({ id: 0, username, role });
+    setAuthEnabled(true);
+  };
+
+  const handleLogout = () => {
+    setToken(null);
+    setCurrentUser(null);
+  };
+
+  if (authChecked && authEnabled && !currentUser) {
+    return (
+      <>
+        <LoginPage onLoginSuccess={handleLoginSuccess} />
+        <ErrorToast />
+      </>
+    );
+  }
 
   const handleSelectSession = (sessionId: string) => {
     setCurrentSessionId(sessionId);
@@ -156,11 +201,25 @@ function App() {
           </nav>
 
           <div className="ml-auto flex items-center gap-3 text-xs text-slate-500">
+            {currentUser && (
+              <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                {currentUser.username}
+                <span className="text-slate-400">({currentUser.role})</span>
+                <button
+                  onClick={handleLogout}
+                  className="ml-1 text-slate-400 hover:text-red-500"
+                  title="退出登录"
+                >
+                  退出
+                </button>
+              </span>
+            )}
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
               服务正常
             </span>
-            <span className="hidden md:inline">v1.2.0</span>
+            <span className="hidden md:inline">v1.3.0</span>
           </div>
         </header>
 

@@ -1,7 +1,7 @@
-# OilChem Agent 项目状态报告 (v1.2.0)
+# OilChem Agent 项目状态报告 (v1.3.0)
 
-> 更新：2026-08-15
-> 基于全部源码逐文件阅读，不含推测。v1.2.0 变更：实验审核（待审核/通过/驳回）、审核人选择接口、待审核可查看报告。
+> 更新：2026-08-16
+> v1.3.0 变更：用户认证（JWT 登录 + 全量鉴权开关）、RBAC 接入（操作员/审核人/管理员）、审核人联动账号、前端登录页、认证测试 7 例。
 
 ---
 
@@ -51,7 +51,7 @@ Agent 内部管线:
 | 配置系统 | `core/config.py` | ✅ 正常 | Pydantic Settings，从 `.env` 读，`lru_cache` 单例 |
 | 日志 | `core/logger.py` | ✅ 正常 | Loguru，stderr + `logs/app.log` 文件输出（10MB 轮转，14 天保留） |
 | 常量 | `core/constants.py` | ✅ 正常 | APP_NAME/APP_VERSION 常量定义 |
-| 安全模块 | `core/security.py` | 🔌 空壳 | 仅含 docstring，无任何实现 |
+| 安全模块 | `core/security.py` | ✅ v1.3.0 实装 | PBKDF2 密码哈希 + PyJWT HS256 签发/验签，密钥/过期时间走 Settings |
 
 ### 3.2 LLM 层
 
@@ -210,7 +210,8 @@ Agent 内部管线:
 |---|---|---|---|
 | 输入护栏 | `guardrails/input_guard.py` | ✅ 已接入 | v0.15.0 接入 `chat()` 和 `chat_stream()`，注入检测 + 敏感信息脱敏 |
 | 输出护栏 | `guardrails/output_guard.py` | ✅ 已接入 | v0.15.0 接入，输出过滤 + 敏感信息泄露防护 |
-| 权限管理 | `guardrails/permission.py` | 🔧 已写未接 | RBAC 模型完整，尚未接入 API 端点 |
+| 权限管理 | `guardrails/permission.py` | ✅ v1.3.0 接入 | RBAC 角色扩展（admin/operator/reviewer），`require_role()` 依赖接入实验审核端点 |
+| 认证 | `api/v1/endpoints/auth.py` + `api/deps.py` | ✅ v1.3.0 | JWT 登录（POST /auth/login）+ /auth/me；`AUTH_ENABLED=true` 全量鉴权；SSE 走 `?token=` |
 | MCP 客户端 | `mcp/client.py` | 🔧 已写未接 | MCPClient + MCPManager 完整，**从未被 Agent 引用** |
 | 文件监听 | `services/file_watcher.py` | 🔧 | watchdog PollingObserver + 防抖合并 + WebSocket 分发 |
 | 遥测采集 | `services/hardware_collector.py` | ✅ | v0.16.0 新增。后台 10s 轮询写入 SQLite，每次采集后自动清理过期数据（默认保留 24h） |
@@ -255,9 +256,9 @@ Agent 内部管线:
 4. **测试严重不足**：仅 2 个 smoke test，无集成测试
 
 ### 5.2 未接入的代码
-1. **权限管理**：`guardrails/permission.py` 的 RBAC 模型完整，未接入 API 端点
-2. **MCP**：`mcp/client.py` 框架完整但从未在 Agent 管线中引用，无任何 MCP Server 配置
-3. **用户认证**：`AUTH_ENABLED=false`，`security.py` 空壳，无 login 端点
+1. **MCP**：`mcp/client.py` 框架完整但从未在 Agent 管线中引用，无任何 MCP Server 配置
+2. ~~**权限管理**~~：已接入（v1.3.0，实验审核端点角色校验 + 审核人列表查账号）
+3. ~~**用户认证**~~：已接入（v1.3.0，JWT 登录 + `AUTH_ENABLED` 开关 + 前端登录页）；`AUTH_ENABLED=false` 为默认值，本地演示仍免登录
 
 ### 5.3 硬件仍为模拟（无真实通信）
 `send_hardware_command` → `DriverRegistry.get(device_id)` 取 `MockDriver` → `driver.send_command()` 返回 `{"status":"queued","message":"...（模拟）"}` → 工具返回 `success=True`。底层是 MockDriver 模拟器，没有任何真实 RS232/USB/GPIB 通信。
@@ -285,18 +286,29 @@ Agent 内部管线:
 
 | 位置 | 版本号 |
 |---|---|
-| `backend/pyproject.toml` | 1.2.0 |
-| `backend/.env` (APP_VERSION) | 1.2.0 |
-| `backend/.env.example` | 1.2.0 |
-| `backend/app/core/config.py` (default) | 1.2.0 |
-| `backend/app/core/constants.py` | 1.2.0 |
-| `frontend/package.json` | 1.2.0 |
-| `frontend/package-lock.json` | 1.2.0 |
-| `frontend/src/App.tsx` | v1.2.0 |
-| `frontend/src/components/Sidebar.tsx` | v1.2.0 |
-| `docs/api.md` | 1.2.0 |
+| `backend/pyproject.toml` | 1.3.0 |
+| `backend/.env` (APP_VERSION) | 1.3.0 |
+| `backend/.env.example` | 1.3.0 |
+| `backend/app/core/config.py` (default) | 1.3.0 |
+| `backend/app/core/constants.py` | 1.3.0 |
+| `frontend/package.json` | 1.3.0 |
+| `frontend/package-lock.json` | 1.3.0 |
+| `frontend/src/App.tsx` | v1.3.0 |
+| `frontend/src/components/Sidebar.tsx` | v1.3.0 |
+| `docs/api.md` | 1.3.0 |
 
-## 八、v1.2.0 变更记录
+## 八、v1.3.0 变更记录
+
+1. **用户认证（JWT）**：`security.py` 实装（PBKDF2 密码哈希 + PyJWT HS256）；`POST /auth/login` + `GET /auth/me`；`AUTH_ENABLED=true` 时全量鉴权（auth/SSE 路由单独挂载豁免）
+2. **RBAC 接入**：`require_role()` 依赖；实验审核端点限 reviewer/admin；`permission.py` 角色扩展为 admin/operator/reviewer
+3. **审核人联动账号**：`GET /reviewers` 改为查 users 表 reviewer/admin 角色；approve/reject 写入账号 ID
+4. **SSE 鉴权**：`/experiments/events` 走 `?token=` query 参数
+5. **前端登录页**：LoginPage + api.ts 统一带 token + 401 跳登录 + 顶部用户/角色显示 + 退出
+6. **认证测试**：`tests/test_auth.py` 7 用例
+7. **修复**：本地库 `experiments.reviewed_by_id` 缺列导致数据库初始化失败，已补列
+8. **版本号 1.2.0 → 1.3.0**
+
+## 九、v1.2.0 变更记录
 
 1. **实验审核**：状态机新增「待审核」「已驳回」；实验跑完生成报告后进入「待审核」，`POST /experiments/{id}/approve`（通过→已完成）/`reject`（驳回→已驳回）；`Experiment` 加 `reviewed_by`/`reviewed_by_id`/`reviewed_at`/`review_comment` 字段（Alembic 005）
 2. **审核人选择**：新增 `GET /reviewers` 端点（当前返回实验员，将来账号管理完善后改查有审核权限的账号）；前端「待审核」状态显示审核人下拉（默认当前操作员=可自审，可选他人），替代写死操作员本人

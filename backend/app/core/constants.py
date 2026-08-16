@@ -7,7 +7,7 @@ Keep this module dependency-free so it can be imported anywhere.
 from pathlib import Path
 
 APP_NAME: str = "OilChem Agent"
-APP_VERSION: str = "1.2.0"
+APP_VERSION: str = "1.3.0"
 API_V1_PREFIX: str = "/api/v1"
 
 # Paths
