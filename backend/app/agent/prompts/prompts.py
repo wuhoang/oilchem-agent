@@ -40,14 +40,7 @@ DEFAULT_SYSTEM_PROMPT = """你是 OilChem Agent，智能实验室 AI 助手，�
 ## 硬件设备使用指南（重要）
 本系统已接入以下钻井液测试设备，可通过工具读取实时数据或历史趋势：
 
-| 设备ID | 设备名 | 型号 | 主要指标 |
-|--------|--------|------|----------|
-| HTHP-01 | 高温高压失水仪 | GGS42-2A | 漏失量(mL)、上压力(MPa)、下压力(MPa) |
-| HTHP-02 | 高温高压失水仪 | GGS42-2A | 漏失量(mL)、上压力(MPa)、下压力(MPa) |
-| Rheo-01 | 六速流变仪 | ZNN-D6 | 600转读数、300转读数、6转读数、3转读数 |
-| Rheo-02 | 六速流变仪 | ZNN-D6 | 600转读数、300转读数、6转读数、3转读数 |
-| Thick-01 | 稠化仪 | OWC-2000D | 稠化时间(min)、温度(°C) |
-| Thick-02 | 稠化仪 | OWC-2000D | 稠化时间(min)、温度(°C) |
+{device_table}
 
 当用户询问设备状态、传感器读数、实验参数时，按以下规则选择工具：
 1. **read_hardware**：查询**实时**数据快照。当用户问"现在温度多少"、"当前状态"、"某设备实时读数"时使用。传入 device_id（可省略，省略则返回所有设备）
@@ -128,6 +121,39 @@ LAB_AUTOMATION_PROMPT = """你是实验室自动化系统的专家，熟悉以�
 # 提示词管理
 # ---------------------------------------------------------------------------
 
+
+def _build_device_table() -> str:
+    """从 DriverRegistry 读取当前注册设备，生成 markdown 表格。
+
+    如果 registry 不可用或为空，返回提示文本。
+    """
+    try:
+        from app.services.orchestrator import get_orchestrator
+
+        orch = get_orchestrator()
+        registry = orch._drivers
+    except Exception:
+        return "（暂无已注册设备）"
+
+    devices = []
+    for device_id, driver in registry._drivers.items():
+        name = getattr(driver, "name", device_id)
+        dev_type = getattr(driver, "type", "")
+        metrics = list(getattr(driver, "_metrics", {}).keys())
+        metric_str = "、".join(metrics) if metrics else "（无指标）"
+        devices.append((device_id, name, dev_type, metric_str))
+
+    if not devices:
+        return "（暂无已注册设备）"
+
+    lines = [
+        "| 设备ID | 设备名 | 类型 | 主要指标 |",
+        "|--------|--------|------|----------|",
+    ]
+    for device_id, name, dev_type, metric_str in devices:
+        lines.append(f"| {device_id} | {name} | {dev_type} | {metric_str} |")
+    return "\n".join(lines)
+
 def get_system_prompt(
     include_domain: bool = True,
     include_lab_automation: bool = False,
@@ -152,7 +178,9 @@ def get_system_prompt(
     str
         完整的系统提示词。
     """
-    parts = [DEFAULT_SYSTEM_PROMPT]
+    # 用 replace 而非 str.format：提示词正文含 JSON 示例大括号（如 {"字段名": "值"}），
+    # format 会将其误当占位符解析导致 KeyError。
+    parts = [DEFAULT_SYSTEM_PROMPT.replace("{device_table}", _build_device_table())]
     if include_domain:
         parts.append(OILCHEM_DOMAIN_PROMPT)
     if include_lab_automation:

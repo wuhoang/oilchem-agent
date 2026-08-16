@@ -5,6 +5,16 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-08-16
+
+### Fixed
+
+- **聊天主链路崩溃**：get_system_prompt() 用 str.format() 填充动态设备表，提示词正文中的 JSON 示例大括号（如 {"字段名": "值"}）被误解析为占位符导致 KeyError，聊天必崩；改用 str.replace() 只替换 {device_table} 占位符
+- **审核人默认值混用**：前端未选审核人时把实验员 ID（如 OP-001，字符串）传给 reviewer_id（int）导致 422；审核人下拉默认选中第一个审核账号，新增 Reviewer 类型（数字 ID）与实验员类型（字符串 ID）区分
+- **中止按钮无状态限制**：前端「中止实验」按钮对任何状态显示、后端 abort 无校验，「已完成」实验可被改成「中止」；前端仅「执行中」显示按钮，后端 abort 校验状态
+- **start 可重复展开步骤**：对已完成实验再调 start 会重复插入实验步骤并重跑；start 增加状态校验，仅「草稿」/「待执行」可启动
+- **retry/skip/abort/start 端点缺异常处理**：orchestrator 抛 ValueError/KeyError 时直接 500；端点补捕获并映射 400/404
+
 ## [1.3.2] - 2026-08-16
 
 ### Fixed

@@ -6,6 +6,30 @@
 
 ---
 
+## [1.3.3] — 2026-08-16
+
+### Fixed
+
+- **聊天主链路崩溃（P0）**
+  - prompts.py 动态设备表用 DEFAULT_SYSTEM_PROMPT.format(device_table=...) 填充，但提示词正文「网页工具使用指南」里有 JSON 示例大括号（{"字段名": "值"}、field_mapping={...}），str.format() 把它们误当占位符解析，get_system_prompt() 必抛 KeyError: '"字段名"'
+  - 影响面：前端聊天不传自定义 system_prompt，后端 chat.py / manager.py 共 4 处走 get_system_prompt()，每次聊天必失败（现有 9 个测试不覆盖聊天路径，未拦住）
+  - 修复：改用 DEFAULT_SYSTEM_PROMPT.replace("{device_table}", _build_device_table())，只替换单一占位符
+- **审核人默认值混用（A1）**
+  - 前端 reviewerId = selectedReviewer || selectedOperator 在未选审核人时把实验员 ID（OP-001 字符串）传给后端 ReviewRequest.reviewer_id（int）→ Pydantic 422
+  - 修复：api.ts 新增 Reviewer 接口（id: number）与 Experimenter（id: string）区分；ExperimentCenter.tsx 加载时默认选中第一个审核账号；下拉显示值与 option value 字符串化
+- **中止按钮无状态限制（A2）**
+  - 前端「中止实验」按钮无条件渲染；后端 abort() 无状态校验，「已完成」实验可被改成「中止」
+  - 修复：前端仅 status === "执行中" 显示按钮；后端 abort() 校验状态非执行中抛 ValueError；abort 端点补 ValueError→400 / KeyError→404
+- **start 可重复展开步骤（A3）**
+  - start() 只查运行时任务表，对已完成实验再调 start 会重复 _expand_steps 插入步骤并重跑，测量数据翻倍
+  - 修复：start() 校验实验状态仅「草稿」/「待执行」可启动，否则 ValueError；start 端点补 KeyError→404
+- **retry/skip 端点缺异常处理（A4）**
+  - retry_step / skip_step 端点不捕获 orchestrator 的 ValueError，重复操作返回 500 而非 400；补 try/except 映射 400
+
+### Changed
+
+- 版本号 1.3.2 → 1.3.3
+
 ## [1.3.2] — 2026-08-16
 
 ### Fixed

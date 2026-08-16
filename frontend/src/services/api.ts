@@ -467,6 +467,13 @@ export interface Experimenter {
   department?: string;
 }
 
+/** 审核人（users 表账号，数字 ID，与实验员的字符串 ID 不同） */
+export interface Reviewer {
+  id: number;
+  name: string;
+  role: string;
+}
+
 export interface Measurement {
   metric_name: string;
   value: number;
@@ -555,8 +562,8 @@ export async function fetchExperimenters(): Promise<{ experimenters: Experimente
   return request<{ experimenters: Experimenter[] }>("/experimenters");
 }
 
-export async function fetchReviewers(): Promise<{ reviewers: Experimenter[] }> {
-  return request<{ reviewers: Experimenter[] }>("/reviewers");
+export async function fetchReviewers(): Promise<{ reviewers: Reviewer[] }> {
+  return request<{ reviewers: Reviewer[] }>("/reviewers");
 }
 
 export async function fetchExperimentReport(experimentId: string): Promise<{ success: boolean; word_path: string; excel_path: string }> {

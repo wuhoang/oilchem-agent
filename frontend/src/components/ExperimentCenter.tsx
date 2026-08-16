@@ -27,6 +27,7 @@ import {
   type ExperimentStep,
   type Measurement,
   type Experimenter,
+  type Reviewer,
   type AuditEvent,
   getToken,
 } from "../services/api";
@@ -47,7 +48,7 @@ export function ExperimentCenter() {
   const [protocols, setProtocols] = useState<Protocol[]>([]);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [experimenters, setExperimenters] = useState<Experimenter[]>([]);
-  const [reviewers, setReviewers] = useState<Experimenter[]>([]);
+  const [reviewers, setReviewers] = useState<Reviewer[]>([]);
   const [selectedProtocol, setSelectedProtocol] = useState<string>("");
   const [selectedExperiment, setSelectedExperiment] = useState<string>("");
   const [selectedOperator, setSelectedOperator] = useState<string>("");
@@ -71,10 +72,14 @@ export function ExperimentCenter() {
       if (!selectedOperator && ex.experimenters.length > 0) {
         setSelectedOperator(ex.experimenters[0].id);
       }
+      // 默认选中第一个审核人（审核人 ID 是数字，实验员 ID 是字符串，不可混用）
+      if (!selectedReviewer && rv.reviewers.length > 0) {
+        setSelectedReviewer(String(rv.reviewers[0].id));
+      }
     } catch (err) {
       notifyError(String(err));
     }
-  }, [selectedOperator]);
+  }, [selectedOperator, selectedReviewer]);
 
   useEffect(() => {
     loadAll();
@@ -184,7 +189,7 @@ export function ExperimentCenter() {
     }
   };
 
-  const reviewerId = selectedReviewer || selectedOperator;
+  const reviewerId = selectedReviewer;
 
   const handleApprove = async () => {
     if (!selectedExperiment) return;
@@ -317,12 +322,12 @@ export function ExperimentCenter() {
                     <label className="flex items-center gap-1 text-xs text-slate-500">
                       审核人
                       <select
-                        value={selectedReviewer || selectedOperator}
+                        value={selectedReviewer}
                         onChange={(e) => setSelectedReviewer(e.target.value)}
                         className="rounded-md border border-slate-200 px-2 py-1.5 text-sm text-slate-700"
                       >
                         {reviewers.map((rv) => (
-                          <option key={rv.id} value={rv.id}>{rv.name}（{rv.role}）</option>
+                          <option key={rv.id} value={String(rv.id)}>{rv.name}（{rv.role}）</option>
                         ))}
                       </select>
                     </label>
@@ -348,12 +353,14 @@ export function ExperimentCenter() {
                     生成/下载报告
                   </button>
                 )}
-                <button
-                  onClick={handleAbort}
-                  className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
-                >
-                  中止实验
-                </button>
+                {detail?.experiment?.status === "执行中" && (
+                  <button
+                    onClick={handleAbort}
+                    className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    中止实验
+                  </button>
+                )}
               </div>
             </div>
 

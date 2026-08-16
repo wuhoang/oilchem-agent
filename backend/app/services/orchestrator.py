@@ -107,9 +107,26 @@ class Orchestrator:
         return {"id": experiment_id, "name": name, "status": self.STATUS_DRAFT}
 
     async def start(self, experiment_id: str) -> None:
-        """启动实验：复位设备 → 展开步骤 → 启动后台主循环。"""
+        """启动实验：复位设备 → 展开步骤 → 启动后台主循环。
+
+        仅「草稿」/「待执行」状态的实验可启动；否则拒绝，防止对已有
+        步骤的实验重复展开、重复执行。
+        """
         if experiment_id in self._tasks:
             raise ValueError(f"实验 {experiment_id} 已在运行")
+
+        from app.database.session import get_session_factory
+        from app.models.tables import Experiment
+
+        factory = get_session_factory()
+        async with factory() as session:
+            exp = await session.get(Experiment, experiment_id)
+            if exp is None:
+                raise KeyError(f"实验不存在: {experiment_id}")
+            if exp.status not in (self.STATUS_DRAFT, self.STATUS_READY):
+                raise ValueError(
+                    f"实验当前状态为「{exp.status}」，不能启动；仅「草稿」/「待执行」可启动"
+                )
 
         await self._expand_steps(experiment_id)
         # 复位实验涉及的所有设备，避免上次实验残留状态（指标/曲线索引）
@@ -141,7 +158,23 @@ class Orchestrator:
         self._tasks[experiment_id] = task
 
     async def abort(self, experiment_id: str) -> None:
-        """中止实验：取消任务 + 释放设备。"""
+        """中止实验：取消任务 + 释放设备。
+
+        仅「执行中」的实验可中止，防止误把「已完成」等终态实验改回「中止」。
+        """
+        from app.database.session import get_session_factory
+        from app.models.tables import Experiment
+
+        factory = get_session_factory()
+        async with factory() as session:
+            exp = await session.get(Experiment, experiment_id)
+            if exp is None:
+                raise KeyError(f"实验不存在: {experiment_id}")
+            if exp.status != self.STATUS_RUNNING:
+                raise ValueError(
+                    f"实验当前状态为「{exp.status}」，不能中止；仅「执行中」的实验可中止"
+                )
+
         task = self._tasks.pop(experiment_id, None)
         if task:
             task.cancel()

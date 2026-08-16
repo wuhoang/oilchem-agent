@@ -166,6 +166,8 @@ async def start_experiment(experiment_id: str) -> dict:
     try:
         await orch.start(experiment_id)
         return {"success": True, "message": f"实验 {experiment_id} 已启动"}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -176,8 +178,11 @@ async def retry_step(experiment_id: str, req: InterveneRequest) -> dict:
     from app.services.orchestrator import get_orchestrator
 
     orch = get_orchestrator()
-    await orch.retry_step(experiment_id, req.step_order)
-    return {"success": True, "message": f"步骤 {req.step_order} 已重试"}
+    try:
+        await orch.retry_step(experiment_id, req.step_order)
+        return {"success": True, "message": f"步骤 {req.step_order} 已重试"}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/experiments/{experiment_id}/skip-step")
@@ -186,8 +191,11 @@ async def skip_step(experiment_id: str, req: InterveneRequest) -> dict:
     from app.services.orchestrator import get_orchestrator
 
     orch = get_orchestrator()
-    await orch.skip_step(experiment_id, req.step_order)
-    return {"success": True, "message": f"步骤 {req.step_order} 已跳过"}
+    try:
+        await orch.skip_step(experiment_id, req.step_order)
+        return {"success": True, "message": f"步骤 {req.step_order} 已跳过"}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/experiments/{experiment_id}/abort")
@@ -196,8 +204,13 @@ async def abort_experiment(experiment_id: str) -> dict:
     from app.services.orchestrator import get_orchestrator
 
     orch = get_orchestrator()
-    await orch.abort(experiment_id)
-    return {"success": True, "message": f"实验 {experiment_id} 已中止"}
+    try:
+        await orch.abort(experiment_id)
+        return {"success": True, "message": f"实验 {experiment_id} 已中止"}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/experiments/{experiment_id}/approve")
