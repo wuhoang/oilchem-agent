@@ -6,6 +6,36 @@
 
 ---
 
+## [2.1.0] — 2026-08-17
+
+### Changed
+
+- **对话提示词重构（迭代 1）**
+  - 删除 `prompts.py` 中「思考方式」段落（拆 3-5 步 + 必须多步 + 提出替代方案），替换为「工具使用原则」（能不用就不用 + 能一步就不分步 + 失败就停 + 有答案就收手）
+  - 新增「回答风格」（先给结论再给细节、工具结果直接整合进回答）
+  - 强化「严格禁止」（禁止重复调用、禁止暴露工具计划、禁止为完整性调用未要求的工具、连续 2 次无新信息强制停止）
+  - 参考了 Claude Code、LangChain ReAct、OpenHands CodeAct 等成熟 Agent 的提示词设计
+- **工具循环反循环检测（代码层）**
+  - `manager.py` 两个路径（stream / non-stream）均加 `call_history: list[tuple[str, str]]`，记录 `(tool_name, json.dumps(args, sort_keys=True))`
+  - 相同 key 重复出现时 `break` 退出循环 + 记 warning 日志
+- **墙钟超时 120 秒**
+  - `time.monotonic()` 记录循环开始时间，每轮检查是否超 120 秒
+  - 超时后设 `final_response` + `skip_memory = True`，跳出循环
+- **SSE 进度事件**
+  - 流式路径每轮迭代开始时 `yield AgentStreamEvent(type="thinking", content="正在处理第 N 步...")`
+  - 保持 SSE 连接活跃，前端不再「卡住无反馈」
+- **Memory 滑动窗口**
+  - `memory.py` 的 `ConversationMemory.max_messages` 从 50 降至 20
+  - 超出时自动压缩（保留最近 10 条 + 摘要）
+
+> 注：这是一次对话体验的迭代尝试，还会继续调整优化。下一步计划：工具描述加「何时不该用」说明、SSE keepalive 注释行、流式路径 LLM 失败降级。
+
+### Changed
+
+- 版本号 2.0.1 → 2.1.0
+
+---
+
 ## [2.0.1] — 2026-08-16
 
 ### Fixed

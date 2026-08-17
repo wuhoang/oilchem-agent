@@ -260,8 +260,21 @@ class AgentManager:
         tool_called = False
         call_count = 0
         skip_memory = False
+        # 反循环：记录 (tool_name, args_hash) 防止重复调用
+        call_history: list[tuple[str, str]] = []
+        # 墙钟超时
+        _loop_start = time.monotonic()
+        _WALL_TIMEOUT = 120.0
         try:
-            for _ in range(self._max_tool_iterations):
+            for iteration in range(self._max_tool_iterations):
+                # 墙钟超时检查
+                if time.monotonic() - _loop_start > _WALL_TIMEOUT:
+                    final_response = "（处理时间较长，已返回当前结果。如需更完整的回答，请简化问题后重试。）"
+                    skip_memory = True
+                    logger.bind(component="agent").warning(
+                        "Wall timeout hit ({}s): session={}", _WALL_TIMEOUT, session_id
+                    )
+                    break
                 # 工具决策用非流式，规避流式 tool_calls 增量解析的复杂度
                 try:
                     response = await self._llm.chat(
@@ -311,6 +324,16 @@ class AgentManager:
                         args = json.loads(fn.get("arguments", "{}"))
                     except json.JSONDecodeError:
                         args = {}
+                    # 反循环：检测重复调用
+                    call_key = (tool_name, json.dumps(args, sort_keys=True))
+                    if call_key in call_history:
+                        logger.bind(component="agent").warning(
+                            "Duplicate tool call detected: {} (args={}), forcing stop",
+                            tool_name, args,
+                        )
+                        final_response = "（已获取足够信息，正在整理回答...）"
+                        break
+                    call_history.append(call_key)
                     logger.bind(component="agent").info(
                         "Agent tool call #{}/{}: {} args={}",
                         call_count, self._max_tool_iterations, tool_name, args,
@@ -611,9 +634,32 @@ class AgentManager:
         call_count = 0
         final_response = ""
         skip_memory = False
+        # 反循环：记录 (tool_name, args_hash) 防止重复调用
+        call_history: list[tuple[str, str]] = []
+        # 墙钟超时：整个管线不超过 120 秒
+        _loop_start = time.monotonic()
+        _WALL_TIMEOUT = 120.0
 
         try:
-            for _ in range(self._max_tool_iterations):
+            for iteration in range(self._max_tool_iterations):
+                # 墙钟超时检查
+                if time.monotonic() - _loop_start > _WALL_TIMEOUT:
+                    final_response = "（处理时间较长，已返回当前结果。如需更完整的回答，请简化问题后重试。）"
+                    skip_memory = True
+                    logger.bind(component="agent").warning(
+                        "Wall timeout hit ({}s): session={}", _WALL_TIMEOUT, session_id
+                    )
+                    break
+
+                # 每轮开始发进度事件，保持 SSE 连接活跃
+                yield AgentStreamEvent(
+                    type="thinking",
+                    session_id=session_id,
+                    content=f"正在处理第 {iteration + 1} 步...",
+                    data={"iteration": iteration + 1},
+                    done=False,
+                )
+
                 try:
                     response = await self._llm.chat(
                         messages,
@@ -622,7 +668,6 @@ class AgentManager:
                         tools=tools,
                     )
                 except Exception:
-                    # 降级：provider 不支持 tools，走无工具对话
                     logger.bind(component="agent").warning(
                         "tools 请求失败，降级为无工具对话: session={}", session_id
                     )
@@ -653,6 +698,17 @@ class AgentManager:
                         args = json.loads(fn.get("arguments", "{}"))
                     except json.JSONDecodeError:
                         args = {}
+
+                    # 反循环：检测重复调用
+                    call_key = (tool_name, json.dumps(args, sort_keys=True))
+                    if call_key in call_history:
+                        logger.bind(component="agent").warning(
+                            "Duplicate tool call detected: {} (args={}), forcing stop",
+                            tool_name, args,
+                        )
+                        final_response = "（已获取足够信息，正在整理回答...）"
+                        break
+                    call_history.append(call_key)
 
                     # tools start 事件
                     yield AgentStreamEvent(

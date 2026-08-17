@@ -36,7 +36,7 @@ class ConversationMemory(BaseModel):
     session_id: str = Field(..., description="会话 ID")
     messages: list[MemoryEntry] = Field(default_factory=list, description="消息历史")
     summary: str = Field(default="", description="历史摘要（当消息过多时生成）")
-    max_messages: int = Field(default=50, description="最大保留消息数")
+    max_messages: int = Field(default=20, description="最大保留消息数（超出自动压缩）")
 
 
 # ---------------------------------------------------------------------------

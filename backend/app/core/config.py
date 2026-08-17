@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # ---- App ----
     app_name: str = Field(default="OilChem Agent", alias="APP_NAME")
-    version: str = Field(default="2.0.1", alias="APP_VERSION")
+    version: str = Field(default="2.1.0", alias="APP_VERSION")
     env: str = Field(default="dev", alias="ENV")
     debug: bool = Field(default=True, alias="DEBUG")
 

@@ -5,6 +5,18 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-08-17
+
+### Changed
+
+- **对话提示词重构（迭代 1）**：从「鼓励探索」转向「鼓励效率」。删除「拆 3-5 步 + 必须多步调用工具」指令，改为「能不用就不用、能一步就不分步、失败就停、有答案就收手」。新增反循环规则（禁止重复调用、连续无新信息强制停止）和显式回答策略（先给结论再给细节）
+- **工具循环反循环检测**：代码层记录每次 (tool_name, args) 调用历史，相同参数重复出现时强制退出循环，防止 LLM 反复调用同一工具
+- **墙钟超时 120 秒**：工具循环整体不超过 120 秒，超时后返回「处理时间较长」提示，不再无限等待
+- **工具循环进度事件**：每轮迭代开始时发送 thinking 事件（「正在处理第 N 步...」），保持 SSE 连接活跃，解决「卡住无反馈」问题
+- **Memory 滑动窗口**：最大保留消息数从 50 降至 20，防止长会话累积超窗口
+
+> 注：这是一次对话体验的迭代尝试，还会继续调整优化。
+
 ## [2.0.1] - 2026-08-16
 
 ### Fixed
