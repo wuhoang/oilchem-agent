@@ -6,6 +6,19 @@
 
 ---
 
+## [2.1.1] — 2026-08-17
+
+### Fixed
+
+- **反循环检测未真正停止主循环**
+  - 现象：2.1.0 的 duplicate 检测 `break` 位于内层 `for tc in msg.tool_calls` 中，只跳出内层循环；主循环继续后把带悬空 tool_calls（缺少 role=tool 响应）的 messages 发给 LLM，API 必返 400
+  - 后果：多一轮注定失败的请求；非流式路径触发 `except` 降级为 `_direct_chat` 无工具对话，丢失工具上下文与「已获取足够信息」文案；流式路径靠 final_response 兜底但日志出现 tools 请求失败 warning
+  - 修复：两条路径均引入 `duplicate_stop` flag——duplicate 时置 True，`for tc` 结束后 `if duplicate_stop: break` 跳出主循环，立即返回「已获取足够信息，正在整理回答...」，不再发多余的 LLM 请求
+
+### Changed
+
+- 版本号 2.1.0 → 2.1.1
+
 ## [2.1.0] — 2026-08-17
 
 ### Changed

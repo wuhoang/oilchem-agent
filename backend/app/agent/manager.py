@@ -316,6 +316,7 @@ class AgentManager:
                         tool_calls=msg.tool_calls,
                     )
                 )
+                duplicate_stop = False
                 for tc in msg.tool_calls:
                     call_count += 1
                     fn = tc.get("function", {})
@@ -332,6 +333,7 @@ class AgentManager:
                             tool_name, args,
                         )
                         final_response = "（已获取足够信息，正在整理回答...）"
+                        duplicate_stop = True
                         break
                     call_history.append(call_key)
                     logger.bind(component="agent").info(
@@ -346,6 +348,8 @@ class AgentManager:
                             tool_call_id=tc.get("id", ""),
                         )
                     )
+                if duplicate_stop:
+                    break
             else:
                 # 达到最大轮数仍未收敛
                 final_response = "已达到最大工具调用轮数，任务未能完成，请重试或换一种问法。"
@@ -690,6 +694,7 @@ class AgentManager:
                         tool_calls=msg.tool_calls,
                     )
                 )
+                duplicate_stop = False
                 for tc in msg.tool_calls:
                     call_count += 1
                     fn = tc.get("function", {})
@@ -707,6 +712,7 @@ class AgentManager:
                             tool_name, args,
                         )
                         final_response = "（已获取足够信息，正在整理回答...）"
+                        duplicate_stop = True
                         break
                     call_history.append(call_key)
 
@@ -771,6 +777,8 @@ class AgentManager:
                                 },
                                 done=False,
                             )
+                if duplicate_stop:
+                    break
             else:
                 final_response = "已达到最大工具调用轮数，任务未能完成，请重试或换一种问法。"
                 skip_memory = True

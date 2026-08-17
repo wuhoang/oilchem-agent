@@ -5,6 +5,12 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-08-17
+
+### Fixed
+
+- **反循环检测未真正停止主循环**：duplicate 检测的 break 只跳出内层 for tc 循环，主循环继续后把缺少 tool 响应的悬空 tool_calls 发给 LLM，导致注定 400 的额外请求和非流式路径意外降级为无工具对话；改为 flag（duplicate_stop）在工具执行循环结束后跳出主循环，重复调用时立即结束并返回「已获取足够信息」
+
 ## [2.1.0] - 2026-08-17
 
 ### Changed
