@@ -153,7 +153,7 @@ class HardwareCollectorService:
         """清理超过保留窗口的旧记录，避免表无限膨胀。"""
         from app.models.tables import DeviceTelemetryHistory
 
-        cutoff = datetime.datetime.utcnow() - datetime.timedelta(
+        cutoff = datetime.datetime.now(datetime.UTC).replace(tzinfo=None) - datetime.timedelta(
             minutes=self._retention_minutes
         )
         try:

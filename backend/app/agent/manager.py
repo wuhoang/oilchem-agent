@@ -1,8 +1,9 @@
 """
 Agent 管理器。
 
-将 Planner、Executor、Memory、LLM Client、Tool Manager 组装在一起，
-提供 Agent 的主入口方法 chat()，处理完整的用户交互流程。
+将 Memory、LLM Client、Tool Manager 组装在一起，
+提供 Agent 的主入口方法 chat_with_tools() / chat_stream_with_tools()，
+处理完整的用户交互流程（原生 function calling 链路）。
 """
 
 from __future__ import annotations
@@ -15,9 +16,7 @@ from typing import Any, AsyncIterator
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from app.agent.executor import ExecutionResult, Executor, StepResult
 from app.agent.memory import MemoryManager
-from app.agent.planner import Plan, PlanStep, Planner
 from app.agent.prompts import get_system_prompt
 from app.llm import LLMClient, ChatMessage, MessageRole
 from app.tools.base import ToolResult
@@ -109,121 +108,8 @@ class AgentManager:
         self._llm = LLMClient.from_settings()
         self._tool_manager = ToolManager()
         self._memory = MemoryManager()
-        self._planner = Planner(self._llm, self._tool_manager)
-        self._executor = Executor(self._llm, self._tool_manager)
         self._max_tool_iterations = 8  # function calling 最大往返轮数，防死循环
         logger.bind(component="agent").info("AgentManager initialized")
-
-    async def chat(self, request: AgentChatRequest) -> AgentChatResponse:
-        """处理用户对话请求。
-
-        Parameters
-        ----------
-        request:
-            对话请求。
-
-        Returns
-        -------
-        AgentChatResponse
-            对话响应。
-        """
-        start = time.perf_counter()
-
-        # 1. 确定会话 ID
-        session_id = request.session_id or str(uuid.uuid4())
-
-        # 2. 获取上下文
-        context = self._memory.get_context(session_id)
-
-        # 3. 添加用户消息到记忆
-        self._memory.add_message(
-            session_id, MessageRole.USER, request.message
-        )
-
-        # 4. 获取系统提示词
-        system_prompt = request.system_prompt or get_system_prompt()
-
-        try:
-            # 5. 规划
-            plan = await self._planner.plan(
-                request.message, context, system_prompt
-            )
-
-            # 如果不需要工具（纯对话），直接 LLM 回复
-            if not plan.steps and not plan.needs_clarification:
-                response = await self._direct_chat(
-                    request.message, context, system_prompt, request.temperature
-                )
-                self._memory.add_message(
-                    session_id, MessageRole.ASSISTANT, response
-                )
-                elapsed = int((time.perf_counter() - start) * 1000)
-                return AgentChatResponse(
-                    session_id=session_id,
-                    response=response,
-                    plan_used=False,
-                    plan_steps=0,
-                    success=True,
-                    execution_time_ms=elapsed,
-                )
-
-            # 如果需要澄清
-            if plan.needs_clarification:
-                self._memory.add_message(
-                    session_id,
-                    MessageRole.ASSISTANT,
-                    plan.clarification_question or "需要更多信息。",
-                )
-                elapsed = int((time.perf_counter() - start) * 1000)
-                return AgentChatResponse(
-                    session_id=session_id,
-                    response=plan.clarification_question or "需要更多信息。",
-                    plan_used=True,
-                    plan_steps=len(plan.steps),
-                    success=False,
-                    error="needs_clarification",
-                    execution_time_ms=elapsed,
-                )
-
-            # 6. 执行规划
-            result = await self._executor.execute(plan)
-
-            # 7. 记录结果
-            self._memory.add_message(
-                session_id,
-                MessageRole.ASSISTANT,
-                result.final_response,
-            )
-
-            # 8. 存储长期知识
-            if result.success:
-                self._memory.add_knowledge(
-                    f"Q: {request.message[:100]}\nA: {result.final_response[:200]}",
-                    source=f"session:{session_id}",
-                )
-
-            elapsed = int((time.perf_counter() - start) * 1000)
-            return AgentChatResponse(
-                session_id=session_id,
-                response=result.final_response,
-                plan_used=True,
-                plan_steps=len(plan.steps),
-                success=result.success,
-                execution_time_ms=elapsed,
-            )
-
-        except Exception as exc:
-            logger.bind(component="agent").error(
-                "Chat failed for session {}: {}", session_id, exc
-            )
-            elapsed = int((time.perf_counter() - start) * 1000)
-            return AgentChatResponse(
-                session_id=session_id,
-                response=f"Agent error: {exc}",
-                success=False,
-                error=str(exc),
-                execution_time_ms=elapsed,
-            )
 
     # -- function calling 主链路 -----------------------------------------------------------
 
@@ -430,171 +316,7 @@ class AgentManager:
         """删除会话。"""
         self._memory.delete_session(session_id)
 
-    # -- 规划与执行 -----------------------------------------------------------
-
-    async def plan(
-        self,
-        message: str,
-        session_id: str,
-        system_prompt: str | None = None,
-    ) -> Plan:
-        """为用户消息生成规划。
-
-        Parameters
-        ----------
-        message:
-            用户消息。
-        session_id:
-            会话 ID。
-        system_prompt:
-            自定义系统提示词。
-
-        Returns
-        -------
-        Plan
-            规划结果。
-        """
-        context = self._memory.get_context(session_id)
-        prompt = system_prompt or get_system_prompt()
-        return await self._planner.plan(message, context, prompt)
-
-    async def execute_plan(self, plan: Plan) -> ExecutionResult:
-        """执行完整规划。
-
-        Parameters
-        ----------
-        plan:
-            要执行的规划。
-
-        Returns
-        -------
-        ExecutionResult
-            执行结果。
-        """
-        return await self._executor.execute(plan)
-
-    async def execute_step(
-        self, step: PlanStep, context: dict[str, Any] | None = None
-    ) -> StepResult:
-        """执行单个规划步骤。
-
-        Parameters
-        ----------
-        step:
-            要执行的步骤。
-        context:
-            步骤上下文（前序步骤结果）。
-
-        Returns
-        -------
-        StepResult
-            步骤执行结果。
-        """
-        return await self._executor._execute_step(step, context or {})
-
-    # -- 流式对话 -----------------------------------------------------------
-
-    async def chat_stream(
-        self,
-        session_id: str,
-        message: str,
-        plan: Plan,
-        system_prompt: str | None = None,
-        temperature: float | None = None,
-        step_results: list[StepResult] | None = None,
-    ) -> AsyncIterator[AgentStreamEvent]:
-        """流式对话（真正的 LLM 流式调用）。
-
-        在流式输出前先推送 "thinking" 事件展示规划步骤，
-        如果有工具执行结果（step_results），会把结果作为工具消息注入上下文，
-        让 LLM 基于真实执行结果生成回复，而不是输出"我将调用工具"的原始文本。
-
-        Parameters
-        ----------
-        session_id:
-            会话 ID。
-        message:
-            用户消息。
-        plan:
-            预先生成的规划对象。
-        system_prompt:
-            自定义系统提示词。
-        temperature:
-            采样温度。
-        step_results:
-            已执行的工具步骤结果（可选）。
-
-        Yields
-        ------
-        AgentStreamEvent
-            流式事件。
-        """
-        self._memory.add_message(session_id, MessageRole.USER, message)
-
-        yield AgentStreamEvent(
-            type="thinking",
-            session_id=session_id,
-            content=self._build_thinking_content(plan, step_results),
-            data={
-                "plan_goal": plan.goal,
-                "plan_steps": [s.model_dump() for s in plan.steps],
-            },
-            done=False,
-        )
-
-        # 构造消息序列
-        messages: list[ChatMessage] = []
-        if system_prompt:
-            messages.append(
-                ChatMessage(role=MessageRole.SYSTEM, content=system_prompt)
-            )
-        context = self._memory.get_context(session_id)
-        messages.extend(context)
-
-        # 如果有工具执行结果，把结果摘要与用户问题合并为最后一条 USER 消息，
-        # 避免出现 USER / USER 连续的角色序列（部分 LLM 会拒绝）。
-        final_user_content = message
-        if step_results:
-            tool_summary = self._build_tool_summary(plan, step_results)
-            final_user_content = (
-                f"[以下是我刚刚通过工具获取/执行的结果，请基于这些结果直接回答用户问题，"
-                f"不要在回复中提到 '我将调用工具' 或规划步骤等内部细节]\n\n"
-                f"{tool_summary}\n\n"
-                f"--- 用户原始问题 ---\n{message}"
-            )
-
-        messages.append(ChatMessage(role=MessageRole.USER, content=final_user_content))
-
-        full_response = ""
-        async for chunk in self._llm.stream_chat(
-            messages,
-            temperature=temperature or 0.7,
-            max_tokens=4096,
-        ):
-            if chunk.delta.content:
-                full_response += chunk.delta.content
-                yield AgentStreamEvent(
-                    type="chunk",
-                    session_id=session_id,
-                    content=chunk.delta.content,
-                    done=False,
-                )
-
-        self._memory.add_message(
-            session_id, MessageRole.ASSISTANT, full_response
-        )
-
-        yield AgentStreamEvent(
-            type="done",
-            session_id=session_id,
-            content=full_response,
-            data={
-                "plan_used": bool(plan.steps),
-                "plan_steps": len(plan.steps),
-                "success": True,
-            },
-            done=True,
-        )
+    # -- function calling 流式对话 -----------------------------------------------------------
 
     async def chat_stream_with_tools(
         self,
@@ -833,56 +555,6 @@ class AgentManager:
     # -- 内部方法 -----------------------------------------------------------
 
     @staticmethod
-    def _build_thinking_content(
-        plan: Plan,
-        step_results: list[StepResult] | None = None,
-    ) -> str:
-        """构建 thinking 事件的文本内容。"""
-        lines = [f"目标: {plan.goal}"]
-        if plan.steps:
-            lines.append("计划步骤:")
-            for step in plan.steps:
-                tool_info = f" → [{step.tool_name}]" if step.tool_name else ""
-                lines.append(f"  {step.step_id}. {step.description}{tool_info}")
-        else:
-            lines.append("无需工具调用，直接回复。")
-
-        if step_results:
-            lines.append("")
-            lines.append("执行进展:")
-            for sr in step_results:
-                status = "✓" if sr.success else "✗"
-                output_preview = ""
-                if sr.output:
-                    try:
-                        output_str = str(sr.output)
-                        output_preview = f" - {output_str[:80]}{'...' if len(output_str) > 80 else ''}"
-                    except Exception:
-                        output_preview = ""
-                lines.append(
-                    f"  {status} 步骤 {sr.step_id} [{sr.tool_called or 'llm'}]{output_preview}"
-                )
-        return "\n".join(lines)
-
-    @staticmethod
-    def _build_tool_summary(
-        plan: Plan, step_results: list[StepResult]
-    ) -> str:
-        """把工具执行结果拼成一段可读摘要，注入给 LLM。"""
-        parts = [f"[执行结果摘要] 共 {len(step_results)} 步\n"]
-        for sr in step_results:
-            status = "成功" if sr.success else "失败"
-            parts.append(f"--- 步骤 {sr.step_id} [{status}] 工具: {sr.tool_called or 'llm'} ---")
-            if sr.success:
-                output_str = AgentManager._sanitize_tool_output(sr.output)
-                if len(output_str) > 3000:
-                    output_str = output_str[:3000] + "\n... (内容已截断)"
-                parts.append(output_str)
-            else:
-                parts.append(f"错误: {sr.error}")
-            parts.append("")
-        return "\n".join(parts)
-
     @staticmethod
     def _sanitize_tool_output(output: Any) -> str:
         """将工具输出转换为 LLM 可读的摘要文本。

@@ -6,6 +6,35 @@
 
 ---
 
+## [2.1.2] — 2026-08-18
+
+### Changed
+
+- **删除旧 Planner→Executor 死代码**
+  - 删除 `agent/planner/` 目录（planner.py 329 行 + __init__.py）
+  - 删除 `agent/executor.py`（319 行）
+  - 删除 `manager.py` 中 5 个死方法：`chat()`（旧 Planner 入口）、`plan()`、`execute_plan()`、`execute_step()`、`chat_stream()`（旧流式入口）
+  - 删除 `manager.py` 中 2 个死辅助函数：`_build_thinking_content()`、`_build_tool_summary()`
+  - 删除 `prompts.py` 中死函数 `get_planning_prompt_template()` 和未使用的 `LAB_AUTOMATION_PROMPT`
+  - 清理 `agent/__init__.py` 和 `agent/prompts/__init__.py` 的死重导出
+  - 清理 `manager.py` 的死导入（Planner/Executor/Plan/PlanStep/ExecutionResult/StepResult）
+  - 更新 `manager.py` 模块文档字符串（移除 Planner/Executor 引用）
+- **修复 `datetime.utcnow()` 弃用（26 处）**
+  - `tables.py`：添加 `_utcnow()` 辅助函数（`datetime.now(datetime.UTC).replace(tzinfo=None)`），替换 17 处 ORM 默认值
+  - `orchestrator.py`：替换 5 处运行时调用
+  - `mock.py`/`base.py`/`hardware_tools.py`/`hardware_collector.py`：替换 4 处
+  - 保持 naive UTC 格式兼容 SQLite 存储
+- **清理未使用导入和过时引用**
+  - `tables.py`：移除 `Column`、`UniqueConstraint`（从未使用）
+  - `registry.py`：文档示例从 `rct-01` 改为 `HTHP-01`
+- **新增测试 14 个**
+  - `test_orchestrator.py`（8 个）：编排器集成测试——创建实验+查详情、启动不存在实验404、审核非待审核实验400、中止非执行中实验400、重试/跳过不存在实验404、实验员审核人列表、看板统计
+  - `test_guardrails.py`（6 个）：输入护栏单元测试——正常通过、空输入拒绝、Prompt 注入检测、jailbreak 检测、敏感信息脱敏、超长输入拒绝
+  - 总测试从 9 个增至 23 个
+- 版本号 2.1.1 → 2.1.2
+
+---
+
 ## [2.1.1] — 2026-08-17
 
 ### Fixed

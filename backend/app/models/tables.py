@@ -10,20 +10,26 @@ from __future__ import annotations
 import datetime
 
 from sqlalchemy import (
-    Column,
     DateTime,
     Float,
     ForeignKey,
     Integer,
     String,
     Text,
-    UniqueConstraint,
     Index,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
+
+
+def _utcnow() -> datetime.datetime:
+    """返回 naive UTC 时间（替代已弃用的 datetime.utcnow()）。
+
+    保持 naive datetime 以兼容 SQLite 存储格式。
+    """
+    return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
 
 
 # ---------------------------------------------------------------------------
@@ -42,10 +48,10 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(32), default="user", nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, nullable=False
     )
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, onupdate=_utcnow, nullable=False
     )
 
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
@@ -66,10 +72,10 @@ class Session(Base):
     title: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     summary: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, nullable=False
     )
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, onupdate=_utcnow, nullable=False
     )
 
     user: Mapped[User] = relationship(back_populates="sessions")
@@ -93,7 +99,7 @@ class Message(Base):
     tool_args: Mapped[str | None] = mapped_column(Text, nullable=True)
     tool_result: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, nullable=False
     )
 
     session: Mapped[Session] = relationship(back_populates="messages")
@@ -118,7 +124,7 @@ class ToolAudit(Base):
     result: Mapped[str] = mapped_column(Text, default="", nullable=False)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, nullable=False
     )
 
 
@@ -136,7 +142,7 @@ class Knowledge(Base):
     source: Mapped[str] = mapped_column(String(255), default="unknown", nullable=False)
     tags: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, nullable=False
     )
 
 
@@ -155,7 +161,7 @@ class Experiment(Base):
     operator: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="待开始")
     created_at: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, nullable=True
+        DateTime, default=_utcnow, nullable=True
     )
     # 追溯关联字段（可空，向后兼容已有数据）
     operator_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
@@ -171,7 +177,7 @@ class Experiment(Base):
     reviewed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
     review_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, onupdate=_utcnow, nullable=False
     )
 
 
@@ -192,7 +198,7 @@ class Sample(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="在用")
     material_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, onupdate=_utcnow, nullable=False
     )
 
 
@@ -212,7 +218,7 @@ class Device(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="在线")
     last_maintain: Mapped[str] = mapped_column(String(32), nullable=False, default="")
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, onupdate=_utcnow, nullable=False
     )
 
 
@@ -257,7 +263,7 @@ class ExperimentAudit(Base):
     event_type: Mapped[str] = mapped_column(String(32), nullable=False)
     detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False, index=True
+        DateTime, default=_utcnow, nullable=False, index=True
     )
 
 
@@ -276,7 +282,7 @@ class Experimenter(Base):
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="技术员")
     department: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, nullable=False
     )
 
 
@@ -291,10 +297,10 @@ class Protocol(Base):
     version: Mapped[str] = mapped_column(String(16), nullable=False, default="v1")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="草稿")
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, nullable=False
     )
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, onupdate=_utcnow, nullable=False
     )
 
 
@@ -358,7 +364,7 @@ class Measurement(Base):
     metric_value: Mapped[float] = mapped_column(Float, nullable=False)
     unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
     timestamp: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.utcnow, nullable=False, index=True
+        DateTime, default=_utcnow, nullable=False, index=True
     )
 
 

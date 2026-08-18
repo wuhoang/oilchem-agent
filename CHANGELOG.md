@@ -5,6 +5,17 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-08-18
+
+### Changed
+
+- **删除旧 Planner→Executor 死代码**：移除 `planner/` 目录、`executor.py`、`manager.py` 中 5 个死方法（`chat`/`plan`/`execute_plan`/`execute_step`/`chat_stream`）、2 个死辅助函数（`_build_thinking_content`/`_build_tool_summary`）、死提示词函数（`get_planning_prompt_template`/`LAB_AUTOMATION_PROMPT`），合计 ~500 行
+- **修复 `datetime.utcnow()` 弃用**：26 处全部替换为 `datetime.now(datetime.UTC).replace(tzinfo=None)`（保持 naive UTC 格式兼容 SQLite），涉及 tables.py（17 处 ORM 默认值）、orchestrator.py（5 处）、mock.py/base.py/hardware_tools.py/hardware_collector.py（4 处）
+- **清理未使用导入**：tables.py 移除 `Column`/`UniqueConstraint`；manager.py 移除 Planner/Executor 相关导入
+- **修复过时引用**：registry.py 文档示例从 `rct-01` 改为 `HTHP-01`
+- **新增测试 14 个**：编排器集成测试 8 个（创建/启动404/审核400/中止400/重试404/跳过404/实验员审核人/看板）、输入护栏测试 6 个（正常通过/空输入/注入检测/jailbreak/脱敏/超长）；总测试从 9 个增至 23 个
+- **版本号 2.1.1 → 2.1.2**
+
 ## [2.1.1] - 2026-08-17
 
 ### Fixed

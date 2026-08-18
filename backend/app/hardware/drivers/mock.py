@@ -101,7 +101,7 @@ class MockDriver(DeviceDriver):
     # -- 遥测 ---------------------------------------------------------------
 
     async def read_telemetry(self) -> list[TelemetryPoint]:
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
         return [
             TelemetryPoint(
                 metric_name=name,

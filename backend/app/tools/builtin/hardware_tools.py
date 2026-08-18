@@ -49,7 +49,7 @@ def _parse_start_time(value: Any) -> datetime.datetime:
       - ISO 时间字符串：如 '2026-08-10T15:00:00'
     缺省为 60 分钟前。
     """
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
     if value is None or value == "":
         return now - datetime.timedelta(minutes=60)
 
@@ -72,7 +72,7 @@ def _parse_start_time(value: Any) -> datetime.datetime:
 def _parse_end_time(value: Any) -> datetime.datetime:
     """解析结束时间参数，缺省为当前时间。"""
     if value is None or value == "":
-        return datetime.datetime.utcnow()
+        return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
     return _parse_start_time(value)
 
 

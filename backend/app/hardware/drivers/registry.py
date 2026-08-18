@@ -25,10 +25,10 @@ class DriverRegistry:
     Usage::
 
         registry = DriverRegistry()
-        registry.register("rct-01", MockDriver("rct-01", ...))
-        driver = await registry.acquire("rct-01", "EXP-001")
+        registry.register("HTHP-01", MockDriver("HTHP-01", ...))
+        driver = await registry.acquire("HTHP-01", "EXP-001")
         ...
-        await registry.release("rct-01")
+        await registry.release("HTHP-01")
     """
 
     def __init__(self) -> None:

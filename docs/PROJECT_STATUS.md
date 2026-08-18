@@ -1,4 +1,4 @@
-# OilChem Agent 项目状态报告 (v2.1.1)
+# OilChem Agent 项目状态报告 (v2.1.2)
 
 > 更新：2026-08-17
 > v2.1.1 变更：修复反循环检测未真正停止主循环（break 作用域错误导致额外 400 请求与非流式意外降级）。
@@ -40,7 +40,6 @@ Agent 内部管线:
    (纯内存会话)      (重试+退避)
                          │
                  OpenAIProvider / OllamaProvider
-  （旧 Planner→Executor 链路保留，未挂主链路）
 ```
 
 ---
@@ -139,13 +138,11 @@ Agent 内部管线:
 
 | 组件 | 文件 | 状态 | 说明 |
 |---|---|---|---|
-| AgentManager | `agent/manager.py` | ✅ | v0.17.0 起主链路为原生 function calling：`chat_with_tools()` + `chat_stream_with_tools()`，模型输出结构化 tool_calls，工具结果 role="tool" 回传 |
-| Planner | `agent/planner/planner.py` | 🔧 保留 | 旧的"手写 JSON 计划"链路，v0.17.0 起不再作为主入口，保留供降级/测试 |
-| Executor | `agent/executor.py` | 🔧 保留 | 同上，`{step_N_result}` 模板传数据机制已退役（function calling 天然保留类型） |
-| MemoryManager | `agent/memory/memory.py` | 🔧 | 纯内存（重启丢失），工具往返不写入 memory（避免污染多轮对话） |
-| Prompts | `agent/prompts/prompts.py` | ✅ v1.3.2 修正 | 三层提示词：默认 + 钻井液领域（HTHP/流变/稠化 + API/GB 标准）+ 实验室自动化 |
+| AgentManager | `agent/manager.py` | ✅ | v0.17.0 起主链路为原生 function calling：`chat_with_tools()` + `chat_stream_with_tools()`，模型输出结构化 tool_calls，工具结果 role="tool" 回传；含重复调用检测 + 墙钟超时 120 秒 |
+| MemoryManager | `agent/memory/memory.py` | 🔧 | 纯内存（重启丢失），工具往返不写入 memory（避免污染多轮对话），滑动窗口 20 条 |
+| Prompts | `agent/prompts/prompts.py` | ✅ v2.1.0 | 效率优先提示词 + 动态设备表 + 按上下文裁剪领域知识 |
 
-**function calling 主链路（v0.17.0）**：`ToolManager.list_tools_schema()` 把 25 个工具转成 OpenAI tools 协议，模型直接输出结构化 `tool_calls`（参数由协议保证合法 JSON），工具结果以 `role="tool"` 消息回传，模型自主决定继续/重试/给最终回答。含 `max_iterations=8` 防死循环。旧的 Planner（手写 JSON 计划）链路已从主调用方移除，文件保留待稳定后清理。
+**function calling 主链路（v0.17.0）**：`ToolManager.list_tools_schema()` 把 25 个工具转成 OpenAI tools 协议，模型直接输出结构化 `tool_calls`（参数由协议保证合法 JSON），工具结果以 `role="tool"` 消息回传，模型自主决定继续/重试/给最终回答。含 `max_iterations=8` 防死循环 + 重复调用检测 + 墙钟超时 120 秒。旧 Planner→Executor 链路已于 v2.1.2 清理。
 
 ### 3.5 API 端点
 
@@ -258,8 +255,8 @@ Agent 内部管线:
 ### 5.1 架构缺陷
 1. **全局单例泛滥**：`get_agent()`、`get_file_watcher()`、`settings` 模块级实例，无 DI 容器
 2. **MemoryManager 纯内存**：进程重启全部丢失
-3. **旧 Planner→Executor 链路未清理**：与 function calling 主链路并存，代码重复、维护成本高
-4. **测试严重不足**：仅 2 个 smoke test，无集成测试
+3. ~~**旧 Planner→Executor 链路未清理**~~：已于 v2.1.2 清理（~500 行死代码删除）
+4. **测试覆盖不足**：23 个测试（auth 7 + bootstrap 2 + orchestrator 8 + guardrails 6），核心聊天循环和编排器主循环仍缺单元测试
 
 ### 5.2 未接入的代码
 1. **MCP**：`mcp/client.py` 框架完整但从未在 Agent 管线中引用，无任何 MCP Server 配置
@@ -292,17 +289,25 @@ Agent 内部管线:
 
 | 位置 | 版本号 |
 |---|---|
-| `backend/pyproject.toml` | 2.1.1 |
-| `backend/.env` (APP_VERSION) | 2.1.1 |
-| `backend/.env.example` | 2.1.1 |
-| `backend/app/core/config.py` (default) | 2.1.1 |
-| `backend/app/core/constants.py` | 2.1.1 |
-| `frontend/package.json` | 2.1.1 |
-| `frontend/package-lock.json` | 2.1.1 |
-| `frontend/src/App.tsx` | v2.1.1 |
-| `docs/api.md` | 2.1.1 |
+| `backend/pyproject.toml` | 2.1.2 |
+| `backend/.env` (APP_VERSION) | 2.1.2 |
+| `backend/.env.example` | 2.1.2 |
+| `backend/app/core/config.py` (default) | 2.1.2 |
+| `backend/app/core/constants.py` | 2.1.2 |
+| `frontend/package.json` | 2.1.2 |
+| `frontend/package-lock.json` | 2.1.2 |
+| `frontend/src/App.tsx` | v2.1.2 |
+| `docs/api.md` | 2.1.2 |
 
-## 八、v2.1.0 变更记录
+## 八、v2.1.2 变更记录
+
+1. **删除旧 Planner→Executor 死代码**：planner/ 目录 + executor.py + manager.py 5 个死方法 + prompts.py 死函数，合计 ~500 行
+2. **修复 datetime.utcnow() 弃用**：26 处全部替换为 datetime.now(datetime.UTC).replace(tzinfo=None)
+3. **清理未使用导入和过时引用**：tables.py Column/UniqueConstraint、registry.py rct-01
+4. **新增测试 14 个**：编排器集成 8 个 + 输入护栏 6 个，总测试 9→23
+5. **版本号 2.1.1 → 2.1.2**
+
+## 九、v2.1.0 变更记录
 
 1. **对话提示词重构（迭代 1）**：从「鼓励探索」转向「鼓励效率」——能不用工具就不用、能一步就不分步、失败就停、有答案就收手
 2. **工具循环反循环检测**：代码层记录调用历史，相同参数重复出现强制退出
@@ -313,14 +318,14 @@ Agent 内部管线:
 
 > 注：对话体验迭代尝试，还会继续优化。
 
-## 九、v1.3.2 变更记录
+## 十、v1.3.2 变更记录
 
 1. **系统提示词修正**：设备表从 5 台幻影设备替换为实际 6 台（HTHP-01/02、Rheo-01/02、Thick-01/02）；领域知识从石油炼制改为钻井液测试
 2. **编排引擎 4 处 bug 修复**：abort 释放全部设备→只释放当前实验；retry/skip 缺防重入→加互斥；步骤超时不执行→wait_for 包裹；cancel 后状态卡死→正确设「中止」
 3. **登录限流**：5 次/5 分钟/IP 防暴力破解
 4. **版本号 1.3.1 → 1.3.2**
 
-## 十、v1.3.0 变更记录
+## 十一、v1.3.0 变更记录
 
 1. **用户认证（JWT）**：`security.py` 实装（PBKDF2 密码哈希 + PyJWT HS256）；`POST /auth/login` + `GET /auth/me`；`AUTH_ENABLED=true` 时全量鉴权（auth/SSE 路由单独挂载豁免）
 2. **RBAC 接入**：`require_role()` 依赖；实验审核端点限 reviewer/admin；`permission.py` 角色扩展为 admin/operator/reviewer
@@ -331,14 +336,14 @@ Agent 内部管线:
 7. **修复**：本地库 `experiments.reviewed_by_id` 缺列导致数据库初始化失败，已补列
 8. **版本号 1.2.0 → 1.3.0**
 
-## 十一、v1.2.0 变更记录
+## 十二、v1.2.0 变更记录
 
 1. **实验审核**：状态机新增「待审核」「已驳回」；实验跑完生成报告后进入「待审核」，`POST /experiments/{id}/approve`（通过→已完成）/`reject`（驳回→已驳回）；`Experiment` 加 `reviewed_by`/`reviewed_by_id`/`reviewed_at`/`review_comment` 字段（Alembic 005）
 2. **审核人选择**：新增 `GET /reviewers` 端点（当前返回实验员，将来账号管理完善后改查有审核权限的账号）；前端「待审核」状态显示审核人下拉（默认当前操作员=可自审，可选他人），替代写死操作员本人
 3. **待审核可查看报告**：报告在进入「待审核」时已生成，前端「待审核」状态也显示「生成/下载报告」按钮
 4. **版本号 1.1.0 → 1.2.0**
 
-## 十二、v1.1.0 变更记录
+## 十三、v1.1.0 变更记录
 
 1. **实验报告自动生成**：新增 `generate_experiment_report` 工具（第 25 个工具）+ `services/report_generator.py` + `GET /experiments/{id}/report` 端点
 2. **实验追溯视图**：`ExperimentAudit` 审计链路补全，实验过程可追溯
@@ -347,36 +352,36 @@ Agent 内部管线:
 5. **设备复位修复**
 6. **工具数 24 → 25**，版本号 1.0.0 → 1.1.0
 
-## 十三、v1.0.0 变更记录
+## 十四、v1.0.0 变更记录
 
 1. **实验域完整闭环（M1-M7）**：新增 6 表 + 扩 2 表 + Alembic 003；`DeviceDriver` 抽象 + `MockDriver` 剧本引擎 + `DriverRegistry`；`Orchestrator` 状态机 + 主循环 + 异常恢复；12 个实验域 REST 端点 + 5 个实验域 Agent 工具；`ExperimentAudit` 审计；前端「实验中心」Tab
 2. **演示主场景**：HTHP 高温高压失水仪方案（升温→恒温→测漏失量，漏失量按 7 点曲线产出）
 3. **工具数 19 → 24**，版本号跳跃至 1.0.0
 
-## 十四、v0.17.0 变更记录
+## 十五、v0.17.0 变更记录
 
 1. **Agent 工具调用迁移到原生 function calling**：模型输出结构化 tool_calls，工具结果 role="tool" 回传，替代旧的"手写 JSON 计划"链路
 2. **`ToolManager.list_tools_schema()` + `_normalize_schema()`**：统一规范化工具参数为标准 JSON Schema（修复 14 个工具扁平格式导致 400 的 bug）
 3. **前端实时工具调用流**：`ToolCallInfo.step_id` → `call_index`，流式事件移除 planning
 4. **防死循环**：`max_iterations=8`，工具往返不写 Memory，图片走 chart 事件不进 LLM 上下文
 
-## 十五、v0.16.3 变更记录
+## 十六、v0.16.3 变更记录
 
 1. **默认 LLM 修正为 DeepSeek**：`config.py` 默认值从 `ollama + qwen2.5` 改为 `openai + https://api.deepseek.com/v1 + deepseek-chat`（实际运行仍以 `.env` 为准）；CLAUDE.md、README、api.md 中 qwen2.5/Ollama 的误导性默认描述已清理，Ollama 仅保留为可选预留方案
 2. **版本号统一到 0.16.3**：代码 8 处 + `.env.example`/CLAUDE.md/DEVELOPMENT.md 同步
 
-## 十六、v0.16.2 变更记录
+## 十七、v0.16.2 变更记录
 
 1. **移除 3 处硬编码本地路径**：`FileBrowser.tsx` 默认目录改为空字符串，后端 `_resolve_path()` 对空路径回退到项目根目录（`Path(__file__).parents[4]` 代码相对定位），行为与原默认一致；Planner 提示词示例路径改为通用写法；`file_access_scope.md` 改为描述 `FILE_ALLOWED_PATHS` 配置
 2. **版本号全量统一**：`.env.example`/CLAUDE.md/DEVELOPMENT.md/README.md 同步到 0.16.2，与代码 9 处版本号一致
 
-## 十七、v0.16.1 变更记录
+## 十八、v0.16.1 变更记录
 
 1. **系统提示词新增「硬件设备使用指南」**：列出 5 台设备及指标，明确 `read_hardware`(实时) / `query_hardware_history`(历史) 分工，给出画趋势图标准步骤
 2. **工具描述优化**：两个硬件工具 description 各自强调实时/历史定位，device_id 参数补充中文设备名
 3. **效果**：Agent 能正确区分"实时读数"（用 read_hardware）和"历史趋势"（用 query_hardware_history），消除割裂感
 
-## 十八、v0.16.0 变更记录
+## 十九、v0.16.0 变更记录
 
 1. **硬件遥测采集服务**：`HardwareCollectorService` 后台 10s 轮询写入 `DeviceTelemetryHistory` OLTP 表，含过期清理
 2. **Agent 工具 `query_hardware_history`**：第 19 个已注册工具，按设备/指标/时间范围查询历史，降采样 + 直接喂 `plot_chart`
@@ -384,12 +389,12 @@ Agent 内部管线:
 4. **`plot_chart` 缩进 bug 修复**：校验代码吞掉了图表生成逻辑
 5. **Planner prompt 优化**：教 LLM 用模板引用替代自然语言占位符
 
-## 十九、v0.15.1 变更记录
+## 二十、v0.15.1 变更记录
 
 1. **前端全局错误提示**：新增 `ErrorToast.tsx`，通过 `notifyError()` 派发 CustomEvent 在页面顶部显示红色提示，替换 `alert()` 弹窗
 2. **首次通过生产构建**：`npm run build` 首次成功，修复 `FileBrowser.tsx` 隐式 `any` 类型和 `Message.tsx` 未使用变量
 
-## 二十、v0.15.0 变更记录
+## 二十一、v0.15.0 变更记录
 
 1. **Guardrails 接入**：`InputGuardrail` 接入 `POST /chat` 和 `POST /chat/stream`（注入检测 + 脱敏）；`OutputGuardrail` 接入 `POST /chat`（内容过滤），`POST /chat/stream` 在完成时做审计日志
 2. **DB 端点接入 ORM**：新增 `Experiment`/`Sample`/`Device` ORM 模型；`db.py` 从内存列表重写为 `AsyncSession` + `select()` 真实查询；`init_db()` 增加种子数据自动填充（幂等）

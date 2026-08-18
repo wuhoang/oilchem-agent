@@ -104,30 +104,6 @@ OILCHEM_DOMAIN_PROMPT = """你是石油化工领域的专家，具备以下专�
 在讨论钻井液测试相关话题时，请使用准确的专业术语，提供具有实际参考价值的见解，并结合实验数据进行说明。
 """
 
-# 实验室自动化专用提示词
-LAB_AUTOMATION_PROMPT = """你是实验室自动化系统的专家，熟悉以下领域：
-
-设备数据采集：
-- 各类实验室设备（反应器、色谱仪、光谱仪、天平、pH 计等）的数据接口与通讯协议
-- 数据采集系统（DAQ）的硬件配置与软件集成
-- 实时数据流的监控、存储与异常报警机制
-- 设备状态监测与故障诊断
-
-实验流程自动化：
-- 实验方案的程序化编排与执行
-- 自动化反应器控制（温度、压力、流量的调节）
-- 样品自动进样、在线检测与数据回传
-- 多步骤实验的串联执行与条件分支逻辑
-
-数据记录与报告：
-- 实验原始数据的结构化存储（CSV、JSON、数据库等）
-- 实验日志（Lab Notebook）的自动生成与归档
-- 实验报告的模板化生成（包含摘要、方法、结果、讨论）
-- 数据溯源与可重复实验的记录管理
-
-在协助实验室自动化相关任务时，关注数据完整性、流程可追溯性和操作安全性，提供可落地的技术方案。
-"""
-
 
 # ---------------------------------------------------------------------------
 # 提示词管理
@@ -181,7 +157,6 @@ _CONTEXT_DOMAIN_MAP: dict[str, bool] = {
 def get_system_prompt(
     context: str | None = None,
     include_domain: bool | None = None,
-    include_lab_automation: bool = False,
     custom_additions: str | None = None,
     **kwargs: Any,
 ) -> str:
@@ -194,8 +169,6 @@ def get_system_prompt(
         决定是否包含领域提示词；None / chat / 未知值默认包含。
     include_domain:
         是否包含石油化工领域专用提示词；None 时按 context 决定。
-    include_lab_automation:
-        是否包含实验室自动化专用提示词。
     custom_additions:
         自定义附加提示词。
     **kwargs:
@@ -214,24 +187,13 @@ def get_system_prompt(
     parts = [DEFAULT_SYSTEM_PROMPT.replace("{device_table}", _build_device_table())]
     if include_domain:
         parts.append(OILCHEM_DOMAIN_PROMPT)
-    if include_lab_automation:
-        parts.append(LAB_AUTOMATION_PROMPT)
     if custom_additions:
         parts.append(custom_additions)
     return "\n\n".join(parts)
 
 
-def get_planning_prompt_template() -> str:
-    """获取规划提示词模板。"""
-    return """请为用户的请求制定执行计划。
-仅使用可用的工具。如不需要使用工具，返回空的步骤列表。
-如请求存在歧义，请先进行澄清。"""
-
-
 __all__ = [
     "DEFAULT_SYSTEM_PROMPT",
     "OILCHEM_DOMAIN_PROMPT",
-    "LAB_AUTOMATION_PROMPT",
     "get_system_prompt",
-    "get_planning_prompt_template",
 ]

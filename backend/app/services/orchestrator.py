@@ -95,7 +95,7 @@ class Orchestrator:
                 protocol_id=protocol_id,
                 sample_code=sample_code,
                 status=self.STATUS_DRAFT,
-                created_at=datetime.datetime.utcnow(),
+                created_at=datetime.datetime.now(datetime.UTC).replace(tzinfo=None),
             )
             session.add(exp)
             await session.commit()
@@ -316,7 +316,7 @@ class Orchestrator:
             exp.status = self.STATUS_COMPLETED
             exp.reviewed_by = reviewer_name
             exp.reviewed_by_id = reviewer_id
-            exp.reviewed_at = _dt.datetime.utcnow()
+            exp.reviewed_at = _dt.datetime.now(_dt.UTC).replace(tzinfo=None)
             exp.review_comment = comment
             await session.commit()
 
@@ -339,7 +339,7 @@ class Orchestrator:
             exp.status = self.STATUS_REJECTED
             exp.reviewed_by = reviewer_name
             exp.reviewed_by_id = reviewer_id
-            exp.reviewed_at = _dt.datetime.utcnow()
+            exp.reviewed_at = _dt.datetime.now(_dt.UTC).replace(tzinfo=None)
             exp.review_comment = comment
             await session.commit()
 
@@ -436,7 +436,7 @@ class Orchestrator:
                         break
 
                     step.status = "running"
-                    step.started_at = datetime.datetime.utcnow()
+                    step.started_at = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
                     await session.commit()
 
                 # 执行步骤（阻塞，带超时）
@@ -460,7 +460,7 @@ class Orchestrator:
                     else:
                         step.status = "failed"
                         step.error_message = result_step.message
-                    step.finished_at = datetime.datetime.utcnow()
+                    step.finished_at = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
                     await session.commit()
 
                 await self._audit(

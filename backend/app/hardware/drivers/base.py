@@ -39,7 +39,7 @@ class TelemetryPoint(BaseModel):
     value: float = Field(..., description="数值")
     unit: str | None = Field(default=None, description="单位")
     timestamp: datetime.datetime = Field(
-        default_factory=datetime.datetime.utcnow, description="采集时间"
+        default_factory=lambda: datetime.datetime.now(datetime.UTC).replace(tzinfo=None), description="采集时间"
     )
 
 
