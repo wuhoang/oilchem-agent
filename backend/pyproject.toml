@@ -1,6 +1,6 @@
 [project]
 name = "oilchem-agent-backend"
-version = "2.1.2"
+version = "2.1.3"
 description = "OilChem Agent backend (Step 0 bootstrap)."
 authors = [{ name = "OilChem Agent Team" }]
 readme = "README.md"

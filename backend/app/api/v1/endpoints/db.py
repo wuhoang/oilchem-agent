@@ -35,6 +35,32 @@ _PK_MAP: dict[str, str] = {
     "devices": "id",
 }
 
+# 每个表可写字段白名单（insert/update 共用）。
+# 白名单外的字段（状态机字段、审核字段、时间戳等）禁止 CRUD 直接修改，
+# 只能由编排器/审核流程等业务代码写入，防止绕过实验审核。
+_WRITABLE_FIELDS: dict[str, set[str]] = {
+    "experiments": {"name", "operator", "operator_id", "protocol_id", "sample_code"},
+    "samples": {"name", "batch", "location", "status", "material_id"},
+    "devices": {"name", "model", "status", "last_maintain"},
+}
+
+
+def _filter_writable(table: str, row: dict[str, Any]) -> dict[str, Any]:
+    """按白名单过滤可写字段；白名单外字段丢弃并记 warning 日志。"""
+    allowed = _WRITABLE_FIELDS.get(table, set())
+    writable = {}
+    dropped = []
+    for key, value in row.items():
+        if key in allowed:
+            writable[key] = value
+        else:
+            dropped.append(key)
+    if dropped:
+        logger.bind(component="db").warning(
+            "Rejected non-writable fields for table {}: {}", table, dropped
+        )
+    return writable
+
 
 # ---------------------------------------------------------------------------
 # 请求/响应模型
@@ -153,7 +179,7 @@ async def insert_row(
 
     new_row = dict(req.row)
 
-    # 检查主键是否已存在
+    # 检查主键是否已存在（用原始请求，主键不属于可写白名单）
     if pk in new_row and new_row[pk]:
         existing = await db.get(model, new_row[pk])
         if existing:
@@ -162,7 +188,11 @@ async def insert_row(
                 detail=f"Row with {pk}={new_row[pk]} already exists in {table}",
             )
 
-    instance = model(**new_row)
+    writable = _filter_writable(table, new_row)
+    if pk in new_row:
+        writable[pk] = new_row[pk]  # 主键单独放行，否则无法落库
+
+    instance = model(**writable)
     db.add(instance)
     await db.commit()
     await db.refresh(instance)
@@ -202,9 +232,8 @@ async def update_row(
             detail=f"Row with {pk}={pk_value} not found in {table}",
         )
 
-    for key, value in row_data.items():
-        if hasattr(instance, key):
-            setattr(instance, key, value)
+    for key, value in _filter_writable(table, row_data).items():
+        setattr(instance, key, value)
 
     await db.commit()
     await db.refresh(instance)

@@ -6,6 +6,23 @@
 
 ---
 
+## [2.1.3] — 2026-08-18
+
+### Fixed
+
+- **DB CRUD 任意字段覆盖漏洞（业务完整性）**
+  - 背景：`db.py` 的 insert/update 端点接受任意 dict（`if hasattr(instance, key): setattr(...)`），任何登录用户（AUTH_ENABLED=false 时甚至无需登录）可直接改写 `experiments.status`，绕过「待审核→审核」流程，审核字段（reviewed_by_id/reviewed_at/review_comment）同样可篡改
+  - 修复：新增 `_WRITABLE_FIELDS` 每表白名单 + `_filter_writable()` 过滤函数，insert/update 共用
+    - experiments：`name`/`operator`/`operator_id`/`protocol_id`/`sample_code`；禁写 status/result/report_path/reviewed_*/review_comment/created_at/updated_at
+    - samples：`name`/`batch`/`location`/`status`/`material_id`（无状态机，status 保留人工维护）
+    - devices：`name`/`model`/`status`/`last_maintain`（同上）
+  - 白名单外字段静默丢弃 + warning 日志（前端 DatabasePanel 整行提交 `{...row}`，不能 400）；insert 时主键单独放行，否则无法落库
+- **前端 DatabasePanel 联动**：experiments 编辑态 status 渲染只读徽章（不再渲染 input）、InlineForm 新增 readonlyKeys prop 隐藏 status 输入框
+- **新增测试 5 个**（`test_db.py`，TDD 先红后绿）：status 更新被忽略、审核字段更新被忽略、name 更新正常、insert 携带 status 落库默认「待开始」、samples.status 正常更新；总测试 23→28
+- **版本号 2.1.2 → 2.1.3**
+
+---
+
 ## [2.1.2] — 2026-08-18
 
 ### Changed

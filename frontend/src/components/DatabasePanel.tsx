@@ -281,6 +281,7 @@ export function DatabasePanel() {
         {newRowMode && (
           <InlineForm
             columns={active.columns}
+            readonlyKeys={activeKey === "experiments" ? new Set(["status"]) : undefined}
             onSave={handleInsert}
             onCancel={() => setNewRowMode(false)}
           />
@@ -329,9 +330,11 @@ export function DatabasePanel() {
                         const raw = row[col.key];
                         const badgeClass = STATUS_BADGE[String(raw)] || "bg-slate-50 text-slate-700 border-slate-200";
                         const isStatus = col.key === "status";
+                        // 实验状态只能由状态机流转，禁止在面板直接编辑
+                        const statusReadonly = isStatus && activeKey === "experiments";
                         return (
                           <td key={col.key} className="px-4 py-2.5 text-slate-700">
-                            {isEditing ? (
+                            {isEditing && !statusReadonly ? (
                               <input
                                 className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
                                 defaultValue={String(raw ?? "")}
@@ -402,10 +405,12 @@ export function DatabasePanel() {
 /** 新增行内联表单 */
 function InlineForm({
   columns,
+  readonlyKeys,
   onSave,
   onCancel,
 }: {
   columns: TableColumn[];
+  readonlyKeys?: Set<string>;
   onSave: (row: Record<string, unknown>) => void;
   onCancel: () => void;
 }) {
@@ -418,15 +423,17 @@ function InlineForm({
       <div className="mb-2 text-sm font-medium text-blue-700">新增记录</div>
       <div className="flex flex-wrap gap-3">
         {columns.map((col) => (
-          <div key={col.key} className="flex items-center gap-1.5">
-            <label className="text-xs text-slate-600">{col.label}</label>
-            <input
-              className="rounded border border-slate-300 px-2 py-1 text-sm"
-              value={form[col.key] || ""}
-              onChange={(e) => setForm((prev) => ({ ...prev, [col.key]: e.target.value }))}
-              style={{ width: col.width || "140px" }}
-            />
-          </div>
+          readonlyKeys?.has(col.key) ? null : (
+            <div key={col.key} className="flex items-center gap-1.5">
+              <label className="text-xs text-slate-600">{col.label}</label>
+              <input
+                className="rounded border border-slate-300 px-2 py-1 text-sm"
+                value={form[col.key] || ""}
+                onChange={(e) => setForm((prev) => ({ ...prev, [col.key]: e.target.value }))}
+                style={{ width: col.width || "140px" }}
+              />
+            </div>
+          )
         ))}
         <button onClick={handleSave} className="rounded-md bg-emerald-600 px-3 py-1 text-sm text-white hover:bg-emerald-700">
           保存

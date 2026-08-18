@@ -5,6 +5,15 @@ All notable changes to OilChem Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] - 2026-08-18
+
+### Fixed
+
+- **DB CRUD 任意字段覆盖漏洞**：`/api/v1/db/*` 的 insert/update 端点此前接受任意 dict 字段（`setattr(instance, key, value)`），可绕过审核流程直接改写 `experiments.status`/审核字段。现按表引入可写字段白名单：experiments 仅允许 `name`/`operator`/`operator_id`/`protocol_id`/`sample_code`，状态/审核/报告/时间戳字段只能由编排器与审核流程写入；samples/devices 无状态机，`status` 保留人工维护。白名单外字段静默丢弃并记 warning 日志（前端整行提交，不能 400）
+- **前端数据库面板联动**：experiments 表编辑态 `status` 改为只读徽章、新增表单不再渲染 `status` 输入框，避免「改了不生效」的困惑
+- **新增测试 5 个**（`test_db.py`）：status 更新被忽略、审核字段更新被忽略、普通字段更新正常、insert 携带 status 落库为默认「待开始」、samples.status 不受影响；总测试 23→28
+- **版本号 2.1.2 → 2.1.3**
+
 ## [2.1.2] - 2026-08-18
 
 ### Changed
