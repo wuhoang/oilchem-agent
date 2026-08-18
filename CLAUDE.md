@@ -110,7 +110,6 @@ frontend/ (React SPA, :5173)  ──HTTP/SSE──▶ backend/ (FastAPI, :8000)
    ★ Agent 管线 ★                                   │
    AgentManager ─ function calling ─▶ 25个工具        │
                ─▶ Memory(纯内存会话)                  │
-   （旧 Planner→Executor 链路保留，未挂主链路）        │
                                                 │
    /api/v1/chat  +  /api/v1/chat/stream        │
    /api/v1/db/*  +  /api/v1/llm/*              │
@@ -131,7 +130,7 @@ cd frontend && npm run dev
 python start.py
 
 # 测试
-cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
+cd backend && .venv/Scripts/python.exe -m pytest -v
 
 # 数据库（SQLite 文件在 backend/oilchem_agent.db）
 删除 .db 文件后重启后端会自动重建 + 填充种子数据
@@ -143,7 +142,6 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 |------|------|
 | ✅ 可用 | FastAPI 骨架、LLM 客户端 (OpenAI 兼容/DeepSeek + Ollama 预留)、Playwright 网页工具 (browse/smart_fill)、对话端点 (含 SSE)、Guardrails 已接入 chat 端点、DB 端点已接入 ORM (SQLite)、**实验域 M1-M7 端到端闭环** (编排器 orchestrator / 报告生成 / SSE 事件 / 追溯审计)、**用户认证 (JWT 登录 + AUTH_ENABLED 全量鉴权开关 + RBAC 角色校验)** |
 | 🔧 已实现未验证 | 25个工具中除已验证之外的其余工具、文件监听 (watchdog) |
-| 🔧 备用链路 | 旧 Planner→Executor（手写 JSON 计划），代码保留但主链路已改用 function calling，不再使用 |
 | ⚠️ Mock | 硬件设备 (油化仿真设备源统一到 DriverRegistry，驱动仍是 MockDriver 模拟器，指令为模拟下发) |
 | 🔌 预留 | MCP 客户端 (写了没接)、真实硬件通信 (RS232/USB/GPIB) |
 
@@ -199,12 +197,12 @@ cd backend && .venv/Scripts/python.exe -m pytest tests/test_bootstrap.py -v
 - 注释: 不要无意义注释。公共 API 用 docstring，内部逻辑只在反直觉时加注
 
 ### 测试
-- 目前仅 2 个 smoke test (`backend/tests/test_bootstrap.py`)
+- 目前 23 个测试（auth 7 + bootstrap 2 + orchestrator 8 + guardrails 6）
 - 改完代码至少跑一遍确认不过不了
 - 如果改了 DB/chat 端点，用 TestClient 实际测一下 API 调用
 
 ### 关键已知问题
-- **主链路已改用原生 function calling**：模型直接输出 `tool_calls`，不依赖 LLM 产出 JSON 计划。旧的 Planner→Executor 链路（依赖 `_extract_json_object()` 三层容错解析 JSON 计划）代码仍保留，但已不在主链路；只有切回旧链路时才需要考虑 JSON 容错问题
+- **主链路是原生 function calling**：模型直接输出 `tool_calls`，不依赖 LLM 产出 JSON 计划。旧 Planner→Executor 链路已于 v2.1.2 彻底删除，无需考虑 JSON 容错问题
 - **MemoryManager 纯内存**，进程重启全部丢失，不是 Bug 是设计如此（还没做持久化）
 - **`send_hardware_command` 仍无真实硬件通信**：工具 → DriverRegistry 取 MockDriver → `driver.send_command()` 返回 `{"status":"queued","message":"...（模拟）"}`。走的是模拟器，未接真实 RS232/USB/GPIB
 - **`init_db()` 三阶段执行**：Alembic → create_all(幂等补建) → seed(幂等填充)。不要回退到早 return 模式，否则新增 ORM 表不会创建

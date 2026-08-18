@@ -418,8 +418,6 @@ oilchem-agent/
 │   │   ├── agent/                    #   Agent 内核
 │   │   │   ├── manager.py            #     Agent 管理器（协调 LLM + 工具 + 记忆）
 │   │   │   ├── memory/memory.py      #     会话记忆管理
-│   │   │   ├── planner/planner.py    #     任务规划器
-│   │   │   ├── executor.py           #     计划执行器
 │   │   │   └── prompts/prompts.py    #     系统提示词
 │   │   ├── api/v1/endpoints/         #   REST + SSE 端点
 │   │   │   ├── chat.py               #     对话 API（同步/流式/会话管理）
