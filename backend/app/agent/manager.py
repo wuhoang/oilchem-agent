@@ -8,6 +8,7 @@ Agent 管理器。
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
@@ -163,12 +164,23 @@ class AgentManager:
                     break
                 # 工具决策用非流式，规避流式 tool_calls 增量解析的复杂度
                 try:
-                    response = await self._llm.chat(
-                        messages,
-                        temperature=request.temperature or 0.7,
-                        max_tokens=4096,
-                        tools=tools,
+                    response = await asyncio.wait_for(
+                        self._llm.chat(
+                            messages,
+                            temperature=request.temperature or 0.7,
+                            max_tokens=4096,
+                            tools=tools,
+                        ),
+                        timeout=60.0,
                     )
+                except asyncio.TimeoutError:
+                    logger.bind(component="agent").warning(
+                        "LLM call timeout (60s) at iteration {}: session={}",
+                        iteration + 1, session_id,
+                    )
+                    final_response = "（AI 响应超时，请稍后重试或简化问题。）"
+                    skip_memory = True
+                    break
                 except Exception:
                     # 降级：provider 不支持 tools 时，走单轮无工具对话
                     logger.bind(component="agent").warning(
@@ -387,12 +399,23 @@ class AgentManager:
                 )
 
                 try:
-                    response = await self._llm.chat(
-                        messages,
-                        temperature=temperature or 0.7,
-                        max_tokens=4096,
-                        tools=tools,
+                    response = await asyncio.wait_for(
+                        self._llm.chat(
+                            messages,
+                            temperature=temperature or 0.7,
+                            max_tokens=4096,
+                            tools=tools,
+                        ),
+                        timeout=60.0,
                     )
+                except asyncio.TimeoutError:
+                    logger.bind(component="agent").warning(
+                        "LLM call timeout (60s) at iteration {}: session={}",
+                        iteration + 1, session_id,
+                    )
+                    final_response = "（AI 响应超时，请稍后重试或简化问题。）"
+                    skip_memory = True
+                    break
                 except Exception:
                     logger.bind(component="agent").warning(
                         "tools 请求失败，降级为无工具对话: session={}", session_id
@@ -554,7 +577,6 @@ class AgentManager:
 
     # -- 内部方法 -----------------------------------------------------------
 
-    @staticmethod
     @staticmethod
     def _sanitize_tool_output(output: Any) -> str:
         """将工具输出转换为 LLM 可读的摘要文本。
