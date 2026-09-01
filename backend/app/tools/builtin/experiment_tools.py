@@ -47,6 +47,52 @@ class ListProtocolsTool(BaseTool):
 
 
 @register_tool(ToolMetadata(
+    name="list_experiments",
+    category="experiment",
+    description="列出最近的实验记录（按创建时间倒序）。当用户问'最近的实验''有哪些实验'或"
+    "需要先查实验ID再查结果时，优先使用此工具。返回实验ID、名称、状态、操作员。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "limit": {"type": "integer", "description": "返回条数，默认 10", "default": 10},
+            "status": {"type": "string", "description": "按状态过滤（可选），如 已完成、待审核、执行中"},
+        },
+        "required": [],
+    },
+))
+class ListExperimentsTool(BaseTool):
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from app.database.session import get_session_factory
+        from app.models.tables import Experiment
+
+        limit = kwargs.get("limit", 10)
+        status_filter = kwargs.get("status")
+
+        factory = get_session_factory()
+        async with factory() as session:
+            stmt = select(Experiment).order_by(Experiment.created_at.desc())
+            if status_filter:
+                stmt = stmt.where(Experiment.status == status_filter)
+            stmt = stmt.limit(limit)
+            result = await session.execute(stmt)
+            experiments = result.scalars().all()
+
+        return ToolResult(
+            success=True,
+            data=[
+                {
+                    "id": e.id,
+                    "name": e.name,
+                    "status": e.status,
+                    "operator": e.operator,
+                    "created_at": str(e.created_at) if e.created_at else None,
+                }
+                for e in experiments
+            ],
+        )
+
+
+@register_tool(ToolMetadata(
     name="create_experiment",
     category="experiment",
     description="创建一个实验。需提供方案ID（protocol_id）和操作员ID（operator_id），"
@@ -214,6 +260,7 @@ class GenerateExperimentReportTool(BaseTool):
 
 
 __all__ = [
+    "ListExperimentsTool",
     "ListProtocolsTool",
     "CreateExperimentTool",
     "StartExperimentTool",
