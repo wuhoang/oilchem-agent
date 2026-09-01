@@ -648,3 +648,108 @@ async def test_file_read_large_truncated():
     second_call = mgr._llm.chat.call_args_list[1][0][0]
     tool_msgs = [m for m in second_call if m.role == MessageRole.TOOL]
     assert len(tool_msgs[0].content) <= 3100
+
+
+@pytest.mark.asyncio
+async def test_experiment_records_query():
+    """查询实验记录 → Agent 调用正确工具并返回结果。"""
+    mgr = _make_manager()
+    tc = _make_tool_call("query_experiment_result", {"experiment_id": "EXP-001"})
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[tc]),
+        _make_response(content="实验 EXP-001 漏失量为 8.5mL，在正常范围内。"),
+    ])
+    mgr._tool_manager.execute = AsyncMock(
+        return_value=ToolResult(success=True, data={
+            "experiment_id": "EXP-001",
+            "status": "已完成",
+            "result": {"漏失量": 8.5, "unit": "mL"},
+        })
+    )
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(
+        message="查询实验 EXP-001 的结果",
+        context="experiments",
+    ))
+    assert resp.success
+    assert resp.plan_used
+    assert "8.5" in resp.response or "EXP-001" in resp.response
+
+
+@pytest.mark.asyncio
+async def test_chart_generation_flow():
+    """画趋势图 → 先查历史数据再画图，两步完成。"""
+    mgr = _make_manager()
+    tc1 = _make_tool_call("query_hardware_history", {
+        "device_id": "HTHP-01", "metric_name": "温度",
+    }, "call_hist")
+    tc2 = _make_tool_call("plot_chart", {
+        "chart_type": "line",
+        "title": "HTHP-01 温度趋势",
+        "x_data": ["10:00", "10:05", "10:10"],
+        "y_data": [25.0, 25.3, 25.1],
+    }, "call_chart")
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[tc1]),
+        _make_response(tool_calls=[tc2]),
+        _make_response(content="温度趋势稳定在 25°C 左右。"),
+    ])
+
+    call_count = [0]
+    async def mock_execute(name, **kwargs):
+        call_count[0] += 1
+        if name == "query_hardware_history":
+            return ToolResult(success=True, data={
+                "timestamps": ["10:00", "10:05", "10:10"],
+                "values": [25.0, 25.3, 25.1],
+            })
+        elif name == "plot_chart":
+            return ToolResult(success=True, data={
+                "chart_type": "line",
+                "image_base64": "iVBORw0KGgo=",
+                "image_mime": "image/png",
+                "width": 800,
+                "height": 500,
+            })
+        return ToolResult(success=False, error="unknown tool")
+
+    mgr._tool_manager.execute = mock_execute
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(
+        message="读取HTHP-01过去30分钟的温度趋势并画图",
+        context="hardware",
+    ))
+    assert resp.success
+    assert resp.plan_steps == 2
+    assert call_count[0] == 2
+
+
+@pytest.mark.asyncio
+async def test_experiment_create_and_start():
+    """创建并启动实验 → 调用 create_experiment + start_experiment。"""
+    mgr = _make_manager()
+    tc1 = _make_tool_call("create_experiment", {
+        "protocol_id": "PROTO-001", "operator_id": "OP-001",
+    }, "call_create")
+    tc2 = _make_tool_call("start_experiment", {
+        "experiment_id": "EXP-TEST",
+    }, "call_start")
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[tc1]),
+        _make_response(tool_calls=[tc2]),
+        _make_response(content="实验 EXP-TEST 已创建并启动。"),
+    ])
+    mgr._tool_manager.execute = AsyncMock(side_effect=[
+        ToolResult(success=True, data={"experiment_id": "EXP-TEST", "status": "草稿"}),
+        ToolResult(success=True, data={"experiment_id": "EXP-TEST", "status": "执行中"}),
+    ])
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(
+        message="创建一个HTHP实验并启动",
+        context="experiments",
+    ))
+    assert resp.success
+    assert resp.plan_steps == 2
