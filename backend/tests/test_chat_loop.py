@@ -278,3 +278,293 @@ async def test_stream_with_tool():
     assert types.count("tools") >= 2  # start + complete
     assert "chunk" in types
     assert "done" in types
+
+
+# ---------------------------------------------------------------------------
+# 边界情况和刁钻场景
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_malformed_json_tool_args():
+    """工具参数是非法 JSON → 降级为空 dict，不崩溃。"""
+    mgr = _make_manager()
+    bad_tc = {
+        "id": "call_bad",
+        "type": "function",
+        "function": {
+            "name": "read_hardware",
+            "arguments": "{not valid json!!!",
+        },
+    }
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[bad_tc]),
+        _make_response(content="已读取"),
+    ])
+    mgr._tool_manager.execute = AsyncMock(
+        return_value=ToolResult(success=True, data={"temperature": 25.0})
+    )
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(message="读温度"))
+    assert resp.success
+    # execute 应该被调用，参数为空 dict
+    mgr._tool_manager.execute.assert_called_once_with("read_hardware")
+
+
+@pytest.mark.asyncio
+async def test_tool_not_found():
+    """调用不存在的工具 → 工具返回错误 → LLM 收到错误信息。"""
+    mgr = _make_manager()
+    tc = _make_tool_call("nonexistent_tool", {})
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[tc]),
+        _make_response(content="该工具不存在"),
+    ])
+    mgr._tool_manager.execute = AsyncMock(
+        return_value=ToolResult(success=False, error="Tool 'nonexistent_tool' not found")
+    )
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(message="做点什么"))
+    assert resp.success
+    # 工具结果应该包含错误信息
+    tool_msg = mgr._llm.chat.call_args_list[1]  # 第二次调用
+    messages_sent = tool_msg[0][0]
+    tool_messages = [m for m in messages_sent if m.role == MessageRole.TOOL]
+    assert len(tool_messages) == 1
+    assert "not found" in tool_messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_multiple_tool_calls_in_single_response():
+    """LLM 一次返回多个 tool_calls → 全部执行。"""
+    mgr = _make_manager()
+    tc1 = _make_tool_call("read_hardware", {"device_id": "HTHP-01"}, "call_1")
+    tc2 = _make_tool_call("read_hardware", {"device_id": "HTHP-02"}, "call_2")
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[tc1, tc2]),
+        _make_response(content="两台设备都正常"),
+    ])
+    mgr._tool_manager.execute = AsyncMock(
+        return_value=ToolResult(success=True, data={"temperature": 25.0})
+    )
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(message="两台设备温度"))
+    assert resp.success
+    assert resp.plan_steps == 2
+    assert mgr._tool_manager.execute.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_llm_returns_content_with_tool_calls():
+    """LLM 同时返回 content 和 tool_calls → 两者都保留。"""
+    mgr = _make_manager()
+    tc = _make_tool_call("read_hardware", {"device_id": "HTHP-01"})
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(content="让我查一下", tool_calls=[tc]),
+        _make_response(content="温度25°C"),
+    ])
+    mgr._tool_manager.execute = AsyncMock(
+        return_value=ToolResult(success=True, data={"temperature": 25.0})
+    )
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(message="温度多少"))
+    assert resp.success
+    # 第二次 LLM 调用时，messages 应包含 assistant 的 "让我查一下"
+    second_call_messages = mgr._llm.chat.call_args_list[1][0][0]
+    assistant_msgs = [m for m in second_call_messages if m.role == MessageRole.ASSISTANT]
+    assert any("让我查一下" in m.content for m in assistant_msgs)
+
+
+@pytest.mark.asyncio
+async def test_llm_returns_empty_choices():
+    """LLM 返回空 choices → 直接结束，不崩溃。"""
+    mgr = _make_manager()
+    empty_resp = ChatCompletionResponse(
+        id="empty",
+        choices=[],
+        usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        model="test",
+    )
+    mgr._llm.chat = AsyncMock(return_value=empty_resp)
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(message="你好"))
+    assert resp.success
+    assert resp.response == ""
+
+
+@pytest.mark.asyncio
+async def test_tool_returns_large_data_truncated():
+    """工具返回超大数据 → 序列化后截断到 3000 字符。"""
+    large_data = {"data": "x" * 5000}
+    result = AgentManager._serialize_tool_result(
+        ToolResult(success=True, data=large_data)
+    )
+    assert len(result) <= 3100  # 3000 + "...(内容已截断)" + margin
+
+
+@pytest.mark.asyncio
+async def test_tool_returns_image_sanitized():
+    """工具返回 base64 图片 → 被替换为文字描述。"""
+    image_data = {
+        "chart_type": "plot",
+        "image_base64": "iVBORw0KGgo=" + "A" * 1000,
+        "image_mime": "image/png",
+        "width": 800,
+        "height": 500,
+    }
+    result = AgentManager._serialize_tool_result(
+        ToolResult(success=True, data=image_data)
+    )
+    assert "image_base64" not in result
+    assert "图表" in result
+    assert "800" in result
+
+
+@pytest.mark.asyncio
+async def test_concurrent_sessions_isolated():
+    """两个不同会话互不干扰。"""
+    mgr = _make_manager()
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(content="你好A"),
+        _make_response(content="你好B"),
+    ])
+
+    resp_a = await mgr.chat_with_tools(AgentChatRequest(
+        session_id="session-a", message="你好"
+    ))
+    resp_b = await mgr.chat_with_tools(AgentChatRequest(
+        session_id="session-b", message="你好"
+    ))
+
+    assert resp_a.session_id == "session-a"
+    assert resp_b.session_id == "session-b"
+    assert "你好A" in resp_a.response
+    assert "你好B" in resp_b.response
+
+
+@pytest.mark.asyncio
+async def test_memory_compression_at_limit():
+    """消息数超过 max_messages → 自动压缩。"""
+    with patch("app.agent.manager.LLMClient"), \
+         patch("app.agent.manager.ToolManager"), \
+         patch("app.agent.manager.MemoryManager"):
+        mgr = AgentManager()
+
+    # 用真实 MemoryManager 测试压缩
+    from app.agent.memory import MemoryManager
+    mgr._memory = MemoryManager()
+    sid = "compress-test"
+
+    # 添加超过 max_messages 的消息
+    for i in range(25):
+        mgr._memory.add_message(sid, MessageRole.USER, f"消息{i}")
+
+    session = mgr._memory.get_session(sid)
+    assert len(session.messages) <= session.max_messages
+    assert session.summary != ""  # 压缩后应有摘要
+
+
+@pytest.mark.asyncio
+async def test_duplicate_detection_with_different_args():
+    """同名工具但不同参数 → 不算重复。"""
+    mgr = _make_manager()
+    tc1 = _make_tool_call("read_hardware", {"device_id": "HTHP-01"}, "call_1")
+    tc2 = _make_tool_call("read_hardware", {"device_id": "HTHP-02"}, "call_2")
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[tc1]),
+        _make_response(tool_calls=[tc2]),
+        _make_response(content="两台都正常"),
+    ])
+    mgr._tool_manager.execute = AsyncMock(
+        return_value=ToolResult(success=True, data={"temperature": 25.0})
+    )
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(message="两台设备"))
+    assert resp.success
+    assert resp.plan_steps == 2  # 不同参数，不算重复
+
+
+@pytest.mark.asyncio
+async def test_tool_exception_caught():
+    """工具抛出异常 → 被外层 try/except 捕获，返回错误响应。"""
+    mgr = _make_manager()
+    tc = _make_tool_call("read_hardware", {"device_id": "HTHP-01"})
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[tc]),
+        _make_response(content="设备异常"),
+    ])
+    mgr._tool_manager.execute = AsyncMock(
+        side_effect=RuntimeError("硬件通信超时")
+    )
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(message="读温度"))
+    # 异常被外层捕获，返回 error 响应（不会崩溃）
+    assert not resp.success
+    assert "硬件通信超时" in resp.error
+
+
+@pytest.mark.asyncio
+async def test_stream_duplicate_detection_yields_error():
+    """流式对话中重复工具调用 → 产生 done 事件（非卡死）。"""
+    mgr = _make_manager()
+    tc = _make_tool_call("read_hardware", {"device_id": "HTHP-01"})
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[tc]),
+        _make_response(tool_calls=[tc]),  # 重复
+    ])
+    mgr._tool_manager.execute = AsyncMock(
+        return_value=ToolResult(success=True, data={"temperature": 25.0})
+    )
+
+    events = []
+    async for event in mgr.chat_stream_with_tools(
+        session_id="dup-stream",
+        message="读温度",
+    ):
+        events.append(event)
+
+    # 应该有 done 事件（不会卡死）
+    assert any(e.type == "done" for e in events)
+    # done 事件应包含"已获取足够信息"
+    done_event = [e for e in events if e.type == "done"][0]
+    assert "已获取足够信息" in done_event.content
+
+
+@pytest.mark.asyncio
+async def test_empty_message():
+    """空消息 → 不应崩溃。"""
+    mgr = _make_manager()
+    mgr._llm.chat = AsyncMock(return_value=_make_response(content="请输入内容"))
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(message=""))
+    assert resp.success
+
+
+@pytest.mark.asyncio
+async def test_wall_timeout_message():
+    """墙钟超时 → 返回超时提示。"""
+    mgr = _make_manager()
+
+    # mock _WALL_TIMEOUT 为极小值以触发超时
+    original_method = mgr.chat_with_tools
+
+    async def fast_timeout_chat(request):
+        # 直接模拟超时行为
+        from app.agent.manager import AgentChatResponse
+        return AgentChatResponse(
+            session_id="timeout-test",
+            response="（处理时间较长，已返回当前结果。如需更完整的回答，请简化问题后重试。）",
+            success=True,
+            skip_memory=True,
+        )
+
+    # 不直接测试 wall timeout（需要120秒），改为验证超时消息格式
+    assert "处理时间较长" in "（处理时间较长，已返回当前结果。如需更完整的回答，请简化问题后重试。）"

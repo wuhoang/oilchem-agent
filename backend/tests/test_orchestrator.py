@@ -272,3 +272,76 @@ def test_experiment_abort_running() -> None:
         resp = client.post(f"/api/v1/experiments/{exp_id}/abort", headers=headers)
         # 中止可能成功(200)或因实验已结束而返回400
         assert resp.status_code in (200, 400)
+
+
+def test_start_already_running_experiment() -> None:
+    """启动已在执行中的实验 → 400。"""
+    with _make_client() as client:
+        token = _login(client)
+        headers = _auth_header(token)
+
+        protocols = client.get("/api/v1/protocols", headers=headers).json()["protocols"]
+        resp = client.post("/api/v1/experiments", json={
+            "protocol_id": protocols[0]["id"],
+            "operator_id": "OP-001",
+            "sample_code": "SAMPLE-RESTART",
+            "name": "重复启动测试",
+        }, headers=headers)
+        assert resp.status_code == 200
+        exp_id = resp.json()["id"]
+
+        resp = client.post(f"/api/v1/experiments/{exp_id}/start", headers=headers)
+        assert resp.status_code == 200
+
+        time.sleep(1)
+
+        # 第二次启动
+        resp = client.post(f"/api/v1/experiments/{exp_id}/start", headers=headers)
+        # 400（已在执行中）或 200（已执行完）
+        assert resp.status_code in (200, 400)
+
+
+def test_approve_completed_experiment_returns_400() -> None:
+    """对已完成的实验再次审核 → 400。"""
+    with _make_client() as client:
+        token = _login(client)
+        headers = _auth_header(token)
+
+        protocols = client.get("/api/v1/protocols", headers=headers).json()["protocols"]
+        resp = client.post("/api/v1/experiments", json={
+            "protocol_id": protocols[0]["id"],
+            "operator_id": "OP-001",
+            "sample_code": "SAMPLE-DBLAPPROVE",
+            "name": "重复审核测试",
+        }, headers=headers)
+        assert resp.status_code == 200
+        exp_id = resp.json()["id"]
+
+        resp = client.post(f"/api/v1/experiments/{exp_id}/start", headers=headers)
+        assert resp.status_code == 200
+
+        status = _wait_for_status(client, headers, exp_id, "待审核", timeout=30)
+        assert status == "待审核"
+
+        reviewers = client.get("/api/v1/reviewers", headers=headers).json()["reviewers"]
+        resp = client.post(f"/api/v1/experiments/{exp_id}/approve", json={
+            "reviewer_id": reviewers[0]["id"],
+            "comment": "通过",
+        }, headers=headers)
+        assert resp.status_code == 200
+
+        # 第二次审核
+        resp = client.post(f"/api/v1/experiments/{exp_id}/approve", json={
+            "reviewer_id": reviewers[0]["id"],
+            "comment": "再次通过",
+        }, headers=headers)
+        assert resp.status_code == 400
+
+
+def test_get_nonexistent_experiment_returns_404() -> None:
+    """查询不存在的实验详情 → 404。"""
+    with _make_client() as client:
+        token = _login(client)
+        resp = client.get("/api/v1/experiments/EXP-FAKE-999",
+                          headers=_auth_header(token))
+        assert resp.status_code == 404

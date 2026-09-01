@@ -133,3 +133,86 @@ def test_update_sample_status_works() -> None:
         }, headers=headers)
         assert resp.status_code == 200
         assert resp.json()["data"]["status"] == "留样"
+
+
+# ---------------------------------------------------------------------------
+# 边界情况
+# ---------------------------------------------------------------------------
+
+
+def test_insert_duplicate_primary_key_returns_409() -> None:
+    """插入重复主键 → 409 Conflict。"""
+    with _make_client() as client:
+        headers = _auth_header(_login(client))
+        exp_id = f"{_ID_PREFIX}-DUP1"
+
+        resp = client.post("/api/v1/db/experiments/insert", json={
+            "row": {"id": exp_id, "name": "第一次插入"},
+        }, headers=headers)
+        assert resp.status_code == 200
+
+        resp = client.post("/api/v1/db/experiments/insert", json={
+            "row": {"id": exp_id, "name": "重复插入"},
+        }, headers=headers)
+        assert resp.status_code == 409
+
+
+def test_query_unknown_table_returns_404() -> None:
+    """查询不存在的表 → 404。"""
+    with _make_client() as client:
+        headers = _auth_header(_login(client))
+        resp = client.post("/api/v1/db/nonexistent_table/query",
+                           json={}, headers=headers)
+        assert resp.status_code == 404
+
+
+def test_update_missing_primary_key_returns_400() -> None:
+    """更新请求缺少主键 → 400。"""
+    with _make_client() as client:
+        headers = _auth_header(_login(client))
+        resp = client.post("/api/v1/db/experiments/update", json={
+            "row": {"name": "没有id"},
+        }, headers=headers)
+        assert resp.status_code == 400
+
+
+def test_insert_minimal_row_succeeds() -> None:
+    """插入只有主键+必填字段的行 → 成功。"""
+    with _make_client() as client:
+        headers = _auth_header(_login(client))
+        resp = client.post("/api/v1/db/samples/insert", json={
+            "row": {"code": f"{_ID_PREFIX}-MINIMAL1", "name": "最小样品"},
+        }, headers=headers)
+        assert resp.status_code == 200
+
+
+def test_all_experiments_status_fields_blocked() -> None:
+    """experiments 表所有状态相关字段都不能直接写入。"""
+    with _make_client() as client:
+        headers = _auth_header(_login(client))
+        exp_id = f"{_ID_PREFIX}-ALLSTAT"
+        _insert_experiment(client, headers, exp_id)
+
+        blocked_fields = {
+            "status": "已完成",
+            "result": '{"fake": true}',
+            "report_path": "/fake/path",
+            "reviewed_by": "FAKE",
+            "reviewed_by_id": 999,
+            "reviewed_at": "2026-01-01",
+            "review_comment": "篡改",
+            "created_at": "2020-01-01",
+            "updated_at": "2020-01-01",
+        }
+
+        resp = client.post("/api/v1/db/experiments/update", json={
+            "row": {"id": exp_id, **blocked_fields},
+        }, headers=headers)
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        # 所有状态字段应保持默认值
+        assert data["status"] == "待开始"
+        assert data["result"] is None
+        assert data["report_path"] is None
+        assert data["reviewed_by_id"] is None
+        assert data["review_comment"] is None
