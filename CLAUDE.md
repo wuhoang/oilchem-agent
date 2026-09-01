@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## 全局通用行为准则（减少常见 LLM 编码错误）
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
@@ -132,6 +134,9 @@ python start.py
 # 测试
 cd backend && .venv/Scripts/python.exe -m pytest -v
 
+# 运行单个测试
+cd backend && .venv/Scripts/python.exe -m pytest tests/test_filename.py::test_function_name -v
+
 # 数据库（SQLite 文件在 backend/oilchem_agent.db）
 删除 .db 文件后重启后端会自动重建 + 填充种子数据
 ```
@@ -161,10 +166,12 @@ cd backend && .venv/Scripts/python.exe -m pytest -v
 ## 架构决策
 
 - **工具决策用非流式** `chat()`，最终文本回复才用流式 `stream_chat()`——规避流式 `tool_calls` 增量累积的复杂度
+- **上下文路由工具子集**：前端当前页面（`context` 参数）决定加载哪些工具——`experiments` → experiment/chart/file，`hardware` → hardware/chart，`files` → file/office，`database` → file，`webform` → web。未指定或 `chat` 时加载全部
 - **tool 往返不写 Memory**：工具结果只在当次循环内回传，不持久化，避免污染后续多轮对话
 - **图片 base64 不进 LLM 上下文**：工具返回图片时经 `_sanitize_tool_output` 转文字描述，图片本身只走 SSE `chart` 事件给前端
 - **`init_db()` 三阶段**：Alembic → create_all(幂等补建) → seed(幂等填充)，不得回退到早 return
 - **Playwright 走后台线程** `_SyncBrowserManager`，勿改用 async API（Windows greenlet 跨线程错误）
+- **实验状态机**（orchestrator.py）：draft → running → pending_review → completed/rejected/failed/aborted。设备执行完自动进 pending_review，等人工审核后才到 completed
 
 ## 项目规则
 
