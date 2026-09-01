@@ -259,9 +259,129 @@ class GenerateExperimentReportTool(BaseTool):
             return ToolResult(success=False, error=str(exc))
 
 
+# ---------------------------------------------------------------------------
+# 资源查询工具（设备台账、样品、人员）
+# ---------------------------------------------------------------------------
+
+
+@register_tool(ToolMetadata(
+    name="list_devices",
+    category="hardware",
+    description="查询设备台账信息（设备ID、名称、型号、状态、上次维护时间）。"
+    "当用户问'有哪些设备''设备型号''设备台账'时使用。"
+    "注意：这是数据库里的静态信息，不同于 read_hardware（实时遥测数据）。",
+    parameters={
+        "type": "object",
+        "properties": {},
+        "required": [],
+    },
+))
+class ListDevicesTool(BaseTool):
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from app.database.session import get_session_factory
+        from app.models.tables import Device
+
+        factory = get_session_factory()
+        async with factory() as session:
+            result = await session.execute(select(Device))
+            devices = result.scalars().all()
+
+        return ToolResult(
+            success=True,
+            data=[
+                {
+                    "id": d.id,
+                    "name": d.name,
+                    "model": d.model,
+                    "status": d.status,
+                    "last_maintain": str(d.last_maintain) if d.last_maintain else None,
+                }
+                for d in devices
+            ],
+        )
+
+
+@register_tool(ToolMetadata(
+    name="list_samples",
+    category="experiment",
+    description="查询样品信息（样品号、名称、批次、存放位置、状态）。"
+    "当用户问'有哪些样品''样品在哪''样品台账'时使用。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "limit": {"type": "integer", "description": "返回条数，默认 20", "default": 20},
+        },
+        "required": [],
+    },
+))
+class ListSamplesTool(BaseTool):
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from app.database.session import get_session_factory
+        from app.models.tables import Sample
+
+        limit = kwargs.get("limit", 20)
+        factory = get_session_factory()
+        async with factory() as session:
+            result = await session.execute(
+                select(Sample).order_by(Sample.code).limit(limit)
+            )
+            samples = result.scalars().all()
+
+        return ToolResult(
+            success=True,
+            data=[
+                {
+                    "code": s.code,
+                    "name": s.name,
+                    "batch": s.batch,
+                    "location": s.location,
+                    "status": s.status,
+                }
+                for s in samples
+            ],
+        )
+
+
+@register_tool(ToolMetadata(
+    name="list_personnel",
+    category="experiment",
+    description="查询实验人员信息（工号、姓名、角色）。"
+    "当用户问'有哪些人''实验员''审核人''人员列表'时使用。",
+    parameters={
+        "type": "object",
+        "properties": {},
+        "required": [],
+    },
+))
+class ListPersonnelTool(BaseTool):
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        from app.database.session import get_session_factory
+        from app.models.tables import Experimenter
+
+        factory = get_session_factory()
+        async with factory() as session:
+            result = await session.execute(select(Experimenter))
+            personnel = result.scalars().all()
+
+        return ToolResult(
+            success=True,
+            data=[
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "role": p.role,
+                }
+                for p in personnel
+            ],
+        )
+
+
 __all__ = [
     "ListExperimentsTool",
     "ListProtocolsTool",
+    "ListDevicesTool",
+    "ListSamplesTool",
+    "ListPersonnelTool",
     "CreateExperimentTool",
     "StartExperimentTool",
     "QueryExperimentProgressTool",
