@@ -568,3 +568,83 @@ async def test_wall_timeout_message():
 
     # 不直接测试 wall timeout（需要120秒），改为验证超时消息格式
     assert "处理时间较长" in "（处理时间较长，已返回当前结果。如需更完整的回答，请简化问题后重试。）"
+
+
+@pytest.mark.asyncio
+async def test_file_read_and_answer():
+    """工具读取文件后，LLM 基于文件内容回答问题。"""
+    mgr = _make_manager()
+    tc = _make_tool_call("read_file", {"path": "README.md"})
+
+    file_content = "# OilChem Agent\n\n石油化工实验室 AI 助手，连接人-硬件-软件-网页。\n\n版本：2.1.3"
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[tc]),
+        _make_response(content="OilChem Agent 是石油化工实验室 AI 助手，当前版本 2.1.3。"),
+    ])
+    mgr._tool_manager.execute = AsyncMock(
+        return_value=ToolResult(success=True, data={"content": file_content})
+    )
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(
+        message="读取 README.md 告诉我项目是什么",
+        context="files",
+    ))
+    assert resp.success
+    assert resp.plan_used
+    assert "OilChem" in resp.response or "石油" in resp.response
+    # 工具应该被正确调用
+    mgr._tool_manager.execute.assert_called_once_with("read_file", path="README.md")
+
+
+@pytest.mark.asyncio
+async def test_file_not_found_agent_handles():
+    """读取不存在的文件 → 工具返回错误 → Agent 正确告知用户。"""
+    mgr = _make_manager()
+    tc = _make_tool_call("read_file", {"path": "nonexistent.txt"})
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[tc]),
+        _make_response(content="文件 nonexistent.txt 不存在，请检查路径。"),
+    ])
+    mgr._tool_manager.execute = AsyncMock(
+        return_value=ToolResult(success=False, error="File not found: nonexistent.txt")
+    )
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(
+        message="读取 nonexistent.txt",
+        context="files",
+    ))
+    assert resp.success
+    # 工具结果应该包含错误
+    second_call = mgr._llm.chat.call_args_list[1][0][0]
+    tool_msgs = [m for m in second_call if m.role == MessageRole.TOOL]
+    assert len(tool_msgs) == 1
+    assert "not found" in tool_msgs[0].content
+
+
+@pytest.mark.asyncio
+async def test_file_read_large_truncated():
+    """读取大文件 → 内容被截断到 3000 字符 → Agent 仍能回答。"""
+    mgr = _make_manager()
+    tc = _make_tool_call("read_file", {"path": "big_file.csv"})
+
+    large_content = "header1,header2\n" + "data1,data2\n" * 2000  # >3000 字符
+
+    mgr._llm.chat = AsyncMock(side_effect=[
+        _make_response(tool_calls=[tc]),
+        _make_response(content="这是一个 CSV 文件，包含大量数据行。"),
+    ])
+    mgr._tool_manager.execute = AsyncMock(
+        return_value=ToolResult(success=True, data={"content": large_content})
+    )
+
+    resp = await mgr.chat_with_tools(AgentChatRequest(
+        message="读取 big_file.csv",
+        context="files",
+    ))
+    assert resp.success
+    # 序列化后的内容应被截断
+    second_call = mgr._llm.chat.call_args_list[1][0][0]
+    tool_msgs = [m for m in second_call if m.role == MessageRole.TOOL]
+    assert len(tool_msgs[0].content) <= 3100
